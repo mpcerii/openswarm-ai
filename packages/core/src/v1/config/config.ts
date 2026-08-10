@@ -16,6 +16,7 @@ import { ConfigPluginV1 } from "./plugin"
 import { ConfigProviderV1 } from "./provider"
 import { ConfigServerV1 } from "./server"
 import { ConfigSkillsV1 } from "./skills"
+import { ConfigSwarmV1 } from "./swarm"
 
 export type Layout = ConfigLayoutV1.Layout
 
@@ -187,6 +188,10 @@ export const Info = Schema.Struct({
       }),
     }),
   ),
+  swarm: Schema.optional(ConfigSwarmV1.Info).annotate({
+    description:
+      "openSwarm multi-agent layer configuration: population budgets, model allowlist, and approval policy",
+  }),
 }).annotate({ identifier: "Config" })
 
 export type Info = DeepMutable<Schema.Schema.Type<typeof Info>>
