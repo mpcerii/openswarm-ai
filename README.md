@@ -1,3 +1,22 @@
+# openSwarm
+
+openSwarm is an open-source hierarchical multi-agent coding system. It pairs a
+normal interactive coding agent with an optional swarm layer that can spawn,
+schedule, and govern thousands of logical child agents under strict human
+model policy and approval controls.
+
+> **Attribution.** openSwarm is independently developed and is based on the
+> MIT-licensed [OpenCode](https://github.com/anomalyco/opencode) project
+> (Copyright (c) 2025 opencode). openSwarm is not affiliated with, endorsed
+> by, or sponsored by the OpenCode team. The original license and copyright
+> notices are preserved in [LICENSE](./LICENSE) and in the source files.
+>
+> The documentation below the line is the upstream OpenCode README, retained
+> for reference; upstream install links and badges refer to the original
+> project.
+
+---
+
 <p align="center">
   <a href="https://opencode.ai">
     <picture>

@@ -16,7 +16,8 @@
     "dev:temporary": "bun run --conditions=browser ./src/temporary.ts"
   },
   "bin": {
-    "opencode": "./bin/opencode"
+    "opencode": "./bin/opencode",
+    "openswarm": "./bin/opencode"
   },
   "exports": {
     "./*": "./src/*.ts"
