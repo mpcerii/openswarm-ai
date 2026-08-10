@@ -159,3 +159,43 @@ const table = sqliteTable("session", {
 - Keep delivery vocabulary explicit. Prompts steer by default and promote at the next safe provider-turn boundary while the current drain requires continuation. An explicit `queue` input remains pending until the Session would otherwise become idle; promote one queued input at that boundary, then reevaluate continuation before promoting another. Promoting any new user input resets the selected agent's provider-turn allowance; a batch of steers resets it once.
 - Keep EventV2 replay owner claims separate from clustered Session execution ownership.
 - Keep the System Context algebra, registry, and built-ins in `src/system-context`; keep Context Source producers with their observed domains, and keep Session History selection plus Context Epoch persistence Session-owned.
+
+## openSwarm Invariants (NON-NEGOTIABLE)
+
+openSwarm extends this codebase (upstream: `anomalyco/opencode`, remote
+`upstream`) into a hierarchical multi-agent coding system. Full rationale in
+`docs/openswarm/invariants.md`. These rules override convenience:
+
+1. **One user-facing primary agent.** The human talks to exactly one primary
+   agent (the normal coding agent, `build`). The hierarchy beneath it is
+   dynamic; do not force role terminology into the product UI.
+2. **Recursive spawning.** Any agent may create child agents if policy
+   permits. No hard-coded manager/worker tiers; roles are runtime metadata.
+3. **10,000 logical agents, not 10,000 processes.** Agents are lightweight
+   durable records with a state machine (created, queued, running, waiting,
+   sleeping, blocked, awaiting_approval, completed, failed, cancelled,
+   retired). Only `maxActiveAgents` execute concurrently. Never design
+   features that require per-agent OS processes, shells, or worktrees at
+   population scale.
+4. **User owns model policy.** Swarm agents may only use models in
+   `swarm.models.allowed`. Enforcement happens in the swarm runtime, never by
+   trusting LLM-provided tool arguments. Empty allowlist = NO models
+   (fail-closed); never silently grant all configured models.
+5. **Human governance.** High-risk operations require approval via the
+   existing permission engine: dependency changes, destructive commands,
+   external side effects, git push/PR/branch deletion/merges into protected
+   branches, production ops, secret access, destructive migrations.
+6. **No direct merges to protected branches by agents.** Agents work through
+   isolated patches/branches/worktrees; integration is deliberate and
+   auditable.
+7. **Attribution everywhere.** mission → task → agent → tool action →
+   artifact → review → approval → integration must stay traceable; swarm
+   state changes are durable events.
+8. **Bounded recursive spawning.** Population, depth, children-per-agent, and
+   active-slot budgets are accounted globally by the swarm runtime with
+   atomic consumption; children cannot mint capacity.
+
+Swarm code lives in `packages/swarm` (`@opencode-ai/swarm`); it may depend on
+Schema/Core, never the reverse. Upstream compatibility is preserved: do not
+rename `opencode.json`, `.opencode` directories, `OPENCODE_*` env vars,
+`@opencode-ai/*` package names, DB file names, or HttpApi identifiers.
