@@ -44,3 +44,95 @@ export function evaluateSpawn(limits: Limits, usage: SpawnUsage, count = 1): Spa
 export function canAdmit(limits: Limits, activeAgents: number) {
   return activeAgents < limits.max_active_agents
 }
+
+// ---------------------------------------------------------------------------
+// Runtime accounting state — pure & in-memory. The runtime owns a single
+// Accounts object; mutations here are the ONLY place capacity is consumed or
+// reclaimed, so accounting stays atomic against concurrency.
+// ---------------------------------------------------------------------------
+
+export interface Accounts {
+  // Total non-retired logical agents ever spawned (decremented only when an
+  // agent explicitly retires/prunes from the ledger).
+  population: number
+  // Currently executing agents (one session drain per agent).
+  active: number
+  // High-water mark of `active` ever observed. Instrumented by setActive so
+  // the scheduler's concurrency bound is provable from accounting alone.
+  activePeak: number
+  // Children ever spawned per parent. Used by evaluateSpawn.
+  childrenByParent: Map<string, number>
+  // Coding workspaces currently allocated to executing agents.
+  activeWorkspaces: number
+  // High-water mark of activeWorkspaces.
+  workspacePeak: number
+}
+
+export function emptyAccounts(): Accounts {
+  return { population: 0, active: 0, activePeak: 0, childrenByParent: new Map(), activeWorkspaces: 0, workspacePeak: 0 }
+}
+
+export interface Consumption {
+  readonly population: number
+  readonly active: number
+}
+
+// Try to consume one spawn slot (population + parent-children). Active-slot
+// consumption is separate: a queued agent stays accounted against population
+// but does not consume an active slot until admitted by the scheduler.
+export function tryConsumeSpawn(
+  limits: Limits,
+  accounts: Accounts,
+  parent: { id: string; depth: number } | undefined,
+): { ok: true; depth: number } | { ok: false; code: SpawnRejection } {
+  const parentChildren = parent ? (accounts.childrenByParent.get(parent.id) ?? 0) : 0
+  const evalResult = evaluateSpawn(limits, {
+    population: accounts.population,
+    parentDepth: parent?.depth,
+    parentChildren,
+  })
+  if (!evalResult.ok) return evalResult
+  accounts.population += 1
+  if (parent) accounts.childrenByParent.set(parent.id, parentChildren + 1)
+  return evalResult
+}
+
+// Reclaim population accounting when an agent is cancelled or retired. We do
+// NOT raise the active counter here; that is reclaimed by setActive(false).
+export function releasePopulation(accounts: Accounts) {
+  if (accounts.population > 0) accounts.population -= 1
+}
+
+// Full release: decrement the population slot AND the parent's children-per-
+// agent counter so a cancelled child frees the parent's future spawn budget
+// too. Pure accounting; the runtime calls this exactly once per release.
+export function releaseSpawn(accounts: Accounts, parentID?: string) {
+  if (accounts.population > 0) accounts.population -= 1
+  if (parentID !== undefined) {
+    const children = accounts.childrenByParent.get(parentID) ?? 0
+    if (children > 0) accounts.childrenByParent.set(parentID, children - 1)
+  }
+}
+
+// Mark an agent as starting or stopping execution; toggles the active counter
+// only when transitioning between states. Returns the new active count.
+export function setActive(accounts: Accounts, entering: boolean): number {
+  if (entering) {
+    accounts.active += 1
+    if (accounts.active > accounts.activePeak) accounts.activePeak = accounts.active
+  } else if (accounts.active > 0) {
+    accounts.active -= 1
+  }
+  return accounts.active
+}
+
+export function tryConsumeWorkspace(accounts: Accounts, max: number): boolean {
+  if (accounts.activeWorkspaces >= max) return false
+  accounts.activeWorkspaces += 1
+  if (accounts.activeWorkspaces > accounts.workspacePeak) accounts.workspacePeak = accounts.activeWorkspaces
+  return true
+}
+
+export function releaseWorkspace(accounts: Accounts) {
+  if (accounts.activeWorkspaces > 0) accounts.activeWorkspaces -= 1
+}
