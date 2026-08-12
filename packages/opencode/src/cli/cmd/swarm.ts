@@ -271,21 +271,42 @@ async function runRealStatus(args: RealStatusArgs): Promise<void> {
   const { Global } = await import("@opencode-ai/core/global")
   const { join } = await import("node:path")
   const { ConfigParse } = await import("@/config/parse")
-  const { ConfigV1 } = await import("@opencode-ai/core/v1/config/config")
   const fs = await import("node:fs")
 
-  // Load the user's config (global + project opencode.json) to read swarm.*.
-  const configPath = args.config ?? (fs.existsSync(join(process.cwd(), "opencode.json")) ? join(process.cwd(), "opencode.json") : undefined)
-  let swarmV1: import("@opencode-ai/core/v1/config/swarm").ConfigSwarmV1.Info | undefined
-  if (configPath && fs.existsSync(configPath)) {
+  // Load the user's EFFECTIVE config (global + project) to read swarm.*.
+  // The TUI merges the global config with project files; mirror that order here
+  // so real-status reports the same state the running TUI actually uses.
+  const isRecord = (x: unknown): x is Record<string, unknown> =>
+    typeof x === "object" && x !== null && !Array.isArray(x)
+  const merge = (base: Record<string, unknown>, next: Record<string, unknown>): Record<string, unknown> => {
+    const out: Record<string, unknown> = { ...base }
+    for (const [key, value] of Object.entries(next)) {
+      out[key] = isRecord(out[key]) && isRecord(value) ? merge(out[key] as Record<string, unknown>, value) : value
+    }
+    return out
+  }
+  const files =
+    args.config !== undefined
+      ? [args.config]
+      : [
+          join(Global.Path.config, "opencode.jsonc"),
+          join(Global.Path.config, "opencode.json"),
+          join(Global.Path.config, "config.json"),
+          join(process.cwd(), ".opencode", "opencode.jsonc"),
+          join(process.cwd(), ".opencode", "opencode.json"),
+          join(process.cwd(), "opencode.jsonc"),
+          join(process.cwd(), "opencode.json"),
+        ]
+  let merged: Record<string, unknown> = {}
+  for (const file of files) {
+    if (!fs.existsSync(file)) continue
     try {
-      const parsed = ConfigParse.jsonc(fs.readFileSync(configPath, "utf8"), configPath)
-      const decoded = ConfigParse.schema(ConfigV1.Info, parsed, configPath)
-      swarmV1 = decoded.swarm
+      merged = merge(merged, ConfigParse.jsonc(fs.readFileSync(file, "utf8"), file) as Record<string, unknown>)
     } catch {
-      swarmV1 = undefined
+      // Ignore unparsable config files.
     }
   }
+  const swarmV1 = (merged as { swarm?: import("@opencode-ai/core/v1/config/swarm").ConfigSwarmV1.Info }).swarm
   const runtime = SwarmConfigBridge.swarmConfigFromV1(swarmV1)
 
   const store = new SqliteStore(
