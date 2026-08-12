@@ -107,6 +107,117 @@ Semantics decided:
 6. **Scale hardening** — pruning/retirement, budget reclamation, metrics,
    load testing toward the 10,000-agent population with small active bounds.
 
+## Phase status
+
+Implemented in `packages/swarm` so far (pure policy + an in-process runtime
+kernel, no upstream invasive rewrites; durable SQLite and the OpenCode
+session bridge remain future work):
+
+- **Contracts & policy (pure):** agent state machine with legal transitions,
+  budget accounting (`SwarmBudget`), model allowlist fail-closed resolution
+  (`SwarmModels`), approval engine with R0–R4 risk categories and scoped
+  grants (`SwarmApproval`), review schema + accept gate (`SwarmReview`),
+  finding dedup clustering (`SwarmDedup`), lease/conflict control
+  (`SwarmConflict`), project census schema (`SwarmCensus`), bounded retry
+  policy (`SwarmRecovery`), audit log with redaction (`SwarmAudit`),
+  provenance `/why` builder (`SwarmProvenance`), provider seam + scripted
+  fake provider (`SwarmProvider`), workspace backend seam (`SwarmWorkspace`).
+- **Runtime kernel (`SwarmRuntime`):** mission + census lifecycle, recursive
+  spawn through budget + model policy + approval, scheduler with bounded
+  active/workspace concurrency and genuine workspace-slot blocking,
+  tool dispatch (finding / patch / review / integration / high-risk),
+  review swarms (read-only reviewers), approval blocking + grants, patch
+  artifacts with provenance, integration ledger gated on approval, `/why`
+  viewer, pause/cancel/mailbox injection.
+- **Distributed control plane (`ControlPlane` + `WorkerNode`):** durable
+  store-backed worker registration/credentials, lease lifecycle, global
+  atomic accounting (population, active, LLM, workspaces), idempotent agent
+  runs, capability-based worker routing, cluster metrics + chaos harness.
+- **Model routing & resource governance:** model catalog + semantic pools
+  (`SwarmModelCatalog`, `SwarmPools`) built strictly from the human allowlist;
+  pure router (`SwarmModelRouter`) with prefer-cheapest / -lowest-latency /
+  -strongest / balanced / explicit-only policies, capability + context-aware
+  selection, authorized-only fallbacks, `model.selected` audit events;
+  rate-limit governor (`SwarmGovernor`) with global/provider/model
+  concurrency + requests-per-window + token throughput that QUEUES (never
+  hard-fails) throttled agents with backoff; operational model health
+  (`SwarmModelHealth`) where auth failures are terminal; mission budgets
+  (`SwarmMissionBudget`) with soft-warn/hard-stop thresholds and human
+  budget-increase approvals; atomic child-budget delegation
+  (`SwarmChildBudget` + DurableStore atomic ops) that children can never
+  mint or duplicate; TUI foundation (`SwarmRegistry`) exposing Models +
+  Resource views.
+- **Simulation (`SwarmSimulation`):** 10,000-agent stress run (bounded
+  resources, zero paid LLM calls) plus a deterministic stress scenario
+  covering mailbox traffic, cancellation, approval blocking, artifacts,
+  and bounded retries. See `test/swarm.test.ts` for the recorded metrics.
+- **Router stress:** `test/router-stress.test.ts` runs 50k pure routing
+  decisions and 5,000 logical agents (plus a 2,000-agent cluster run) with
+  zero paid LLM traffic; `test/rate-limit.test.ts` proves global + per-model
+  concurrency holds across workers; `test/budget.test.ts` proves hard limits
+  stop scheduling, human increases resume, and child budgets cannot
+  duplicate.
+
+Not yet built (documented technical debt):
+- durable SQLite persistence for the LOCAL kernel (schema/DDL prepared in
+  `src/schema.ts`; the distributed store's SqliteStore covers cluster mode)
+- real provider bridge to `@opencode-ai/llm` / V1 `ai` SDK
+- worktree backend using OpenCode's `Worktree` service
+- real-repository census scanner (auto-build `SwarmCensus.Info` from a repo)
+- wiring the TUI overlay to the distributed `ControlPlane` cluster metrics
+  (the overlay currently renders the in-process kernel via `SwarmBridge`; the
+  worker/approval/provenance shapes already match the control-plane surface)
+
+## Phase 3 status
+
+TUI/UX for large swarms (`packages/tui/src/swarm`), built on the queryable
+state from Phase 2 (`SwarmRegistry.modelsView()` / `resourceView()`):
+
+- **Swarm overlay** (`/swarm`, `<leader>s`): full-screen operational layer that
+  layers on top of the primary chat without replacing it — tabs for Overview,
+  Agents, Tasks, Approvals, Artifacts, Models, Workers, Activity, Budget, Why.
+- **Compact status bar**: one line under the app (`SWARM N agents │ X active │
+  Y approvals`), toggled via `/swarm toggle status`.
+- **Hierarchy tree** (Agents tab): collapsible Primary → children with
+  descendant counts, expand/collapse/filter (state/model/text)/paginate/jump,
+  rendered from an O(n) indexed projection (`state/tree.ts`).
+- **Agent detail**: id/state/role/parent/children/model/tasks/artifacts/
+  waiting-for + message/cancel/cancel-branch/inspect actions (message goes
+  through the human→agent mailbox).
+- **Tasks / artifacts / reviews**: first-class lists with per-row detail.
+- **Approval inbox**: severity-sorted (HIGH/MEDIUM/LOW), detail with risk +
+  affected resources, actions Approve once / Approve scope / Modify scope /
+  Reject / Ask primary agent; integration approvals expand into a consolidated
+  review (files, +/- lines, patches, tests, reviews, conflicts, risk).
+- **Activity stream**: curated human-relevant events (findings, patches,
+  reviews, approvals, budgets, worker/model health) with severity markers,
+  never raw internal model chatter.
+- **Human overrides**: pause/resume, cancel agent/branch, change active bound,
+  change mission budget limits, disable/enable model — all routed through the
+  kernel's own guards.
+- **Emergency stop**: pauses scheduling, cancels non-executing work, blocks
+  further mutations, preserves state + audit log, allows post-stop inspection.
+- **/why provenance**: mission → task → agent → artifact → reviews → approval →
+  integration chain rendered from the audit log.
+- **Primary agent summaries**: concise operational lines (N findings, M fixes
+  ready, K approvals needed, budget %).
+- **Performance**: measured at 10k agents / 30k audit events — snapshot build
+  ~14-18 ms, first tree page ~0.7 ms, jump-to-agent ~0.5 ms, index-based state
+  filter ~1.5 ms. Rendering only materializes the current page of rows.
+- **Tests**: `packages/tui/test/swarm` — tree/collapse/filter/jump at 10k,
+  approval flow, emergency stop, model disable, budget exhaustion/raise,
+  worker lanes, /why, integration review, plus perf assertions.
+- **Small kernel additions** (packages/swarm): `setActiveBound`,
+  `setMissionBudgetLimits` (human overrides), `purgeCancelled` made public for
+  emergency stop, and `handleRequestReview` falls back to the agent's latest
+  artifact when none is named.
+
+Remaining rough edges: the overlay is driven by an in-process demo bridge
+(seed + fake provider) until the control-plane transport is wired; `/agent
+<id>` args are not plumbed through the slash palette (opens the Agents tab to
+filter); worker drain/offline are control-plane actions not available on the
+local lanes; `bun install` must regenerate the lockfile on a connected machine.
+
 ## Compatibility commitments
 
 - `opencode` binary, `opencode.json` config name, `.opencode` directories,

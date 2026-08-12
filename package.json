@@ -24,11 +24,26 @@
   },
   "workspaces": {
     "packages": [
-      "packages/*",
-      "packages/console/*",
-      "packages/stats/*",
+      "packages/opencode",
+      "packages/tui",
+      "packages/ui",
+      "packages/cli",
+      "packages/client",
       "packages/sdk/js",
-      "packages/slack"
+      "packages/sdk-next",
+      "packages/codemode",
+      "packages/core",
+      "packages/schema",
+      "packages/llm",
+      "packages/protocol",
+      "packages/server",
+      "packages/plugin",
+      "packages/script",
+      "packages/http-recorder",
+      "packages/httpapi-codegen",
+      "packages/effect-drizzle-sqlite",
+      "packages/effect-sqlite-node",
+      "packages/swarm"
     ],
     "catalog": {
       "@effect/opentelemetry": "4.0.0-beta.83",
