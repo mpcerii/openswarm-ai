@@ -231,9 +231,10 @@ export const ReadTool = Tool.define<
       ctx: Tool.Context<Metadata>,
     ) {
       const instance = yield* InstanceState.context
+      const base = ctx.directory ?? instance.directory
       let filepath = params.filePath
       if (!path.isAbsolute(filepath)) {
-        filepath = path.resolve(instance.directory, filepath)
+        filepath = path.resolve(base, filepath)
       }
       if (process.platform === "win32") {
         filepath = FSUtil.normalizePath(filepath)

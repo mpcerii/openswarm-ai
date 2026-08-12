@@ -9,6 +9,7 @@ import { WorkspaceV2 } from "@opencode-ai/core/workspace"
 import { ControlPaths } from "../../src/server/routes/instance/httpapi/groups/control"
 import { InstancePaths } from "../../src/server/routes/instance/httpapi/groups/instance"
 import { SessionPaths } from "../../src/server/routes/instance/httpapi/groups/session"
+import { SwarmPaths } from "../../src/server/routes/instance/httpapi/groups/swarm"
 import { ProjectV2 } from "@opencode-ai/core/project"
 import { QuestionID } from "../../src/question/schema"
 import { HttpApiApp } from "../../src/server/routes/instance/httpapi/server"
@@ -260,6 +261,86 @@ describe("instance HttpApi", () => {
       expect(yield* diff.json).toContainEqual(
         expect.objectContaining({ file: "changed.txt", additions: 1, status: "added" }),
       )
+    }),
+  )
+
+  it.live("serves real swarm status + agents from the live runtime store", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped({ git: false })
+      const status = yield* HttpClientRequest.get(SwarmPaths.status).pipe(
+        directoryHeader(dir),
+        HttpClient.execute,
+      )
+      expect(status.status).toBe(200)
+      const statusBody = yield* status.json
+      // Real scheduler state: enabled is whatever the (empty) config says, and
+      // the shape carries real bounds + per-state counts. This is NOT fake data.
+      expect(statusBody).toMatchObject({
+        enabled: expect.any(Boolean),
+        models: expect.objectContaining({ allowed: expect.any(Array) }),
+        population: expect.objectContaining({ current: expect.any(Number), max: expect.any(Number) }),
+        active: expect.objectContaining({ agents: expect.any(Number), max: expect.any(Number) }),
+        agentsByState: expect.any(Object),
+      })
+
+      const agents = yield* HttpClientRequest.get(SwarmPaths.agents).pipe(
+        directoryHeader(dir),
+        HttpClient.execute,
+      )
+      expect(agents.status).toBe(200)
+      const agentsBody = yield* agents.json
+      expect(agentsBody).toMatchObject({ agents: expect.any(Array) })
+    }),
+  )
+
+  it.live("swarm mutations: pause, resume, cancel are real server endpoints", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped({ git: false })
+      const pause = yield* HttpClientRequest.post(SwarmPaths.pause).pipe(directoryHeader(dir), HttpClient.execute)
+      expect(pause.status).toBe(200)
+      expect(yield* pause.json).toMatchObject({ enabled: expect.any(Boolean) })
+
+      const resume = yield* HttpClientRequest.post(SwarmPaths.resume).pipe(directoryHeader(dir), HttpClient.execute)
+      expect(resume.status).toBe(200)
+      expect(yield* resume.json).toMatchObject({ enabled: expect.any(Boolean) })
+
+      const cancel = yield* HttpClientRequest.post(SwarmPaths.cancel).pipe(
+        directoryHeader(dir),
+        HttpClientRequest.bodyJson({ agentID: "swa_nonexistent", branch: true }),
+        Effect.flatMap(HttpClient.execute),
+      )
+      expect(cancel.status).toBe(200)
+      expect(yield* cancel.json).toMatchObject({ cancelled: expect.any(Array) })
+    }),
+  )
+
+  it.live("swarm /why provenance serves stored operational facts", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped({ git: false })
+      const why = yield* HttpClientRequest.get(`${SwarmPaths.why}?target=src%2Fauth%2Fsession.ts`).pipe(
+        directoryHeader(dir),
+        HttpClient.execute,
+      )
+      expect(why.status).toBe(200)
+      const body = yield* why.json
+      // Real provenance response shape (empty entries is fine — the store has
+      // no patches for a fresh tmp dir; the point is the endpoint works).
+      expect(body).toMatchObject({ entries: expect.any(Array) })
+    }),
+  )
+
+  it.live("integration apply is REJECTED without a server-side approval token (bypass test)", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped({ git: false })
+      // Calling apply directly with NO approval must be rejected server-side.
+      const apply = yield* HttpClientRequest.post(SwarmPaths.integrationApply).pipe(
+        directoryHeader(dir),
+        HttpClient.execute,
+      )
+      expect(apply.status).toBe(200)
+      const body = (yield* apply.json) as { applied: boolean; reason?: string }
+      expect(body.applied).toBe(false)
+      expect(body.reason).toMatch(/not approved/)
     }),
   )
 })

@@ -675,6 +675,26 @@ export const RunCommand = effectCmd({
         }
         const sessionID = sess.id
 
+        // Swarm startup validation: fail-closed, non-fatal. If swarm is enabled
+        // but no child models are authorized, agents cannot spawn; surface a
+        // clear warning rather than silently pretending everything works.
+        try {
+          const swarmCfg = (
+            (await sdk.config.get())?.data as unknown as {
+              swarm?: { enabled?: boolean; models?: { allowed?: string[] } }
+            } | undefined
+          )?.swarm
+          if (swarmCfg?.enabled === true && (swarmCfg.models?.allowed?.length ?? 0) === 0) {
+            UI.println(
+              UI.Style.TEXT_DANGER_BOLD +
+                "!  " +
+                'Swarm is enabled but "swarm.models.allowed" is empty. Configure allowed "provider/model" ids before agents can spawn (fail-closed).',
+            )
+          }
+        } catch {
+          // Non-fatal; the tool layer enforces the same rule at spawn time.
+        }
+
         function emit(type: string, data: Record<string, unknown>) {
           if (args.format === "json") {
             process.stdout.write(

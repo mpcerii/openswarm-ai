@@ -86,6 +86,7 @@ import * as TuiAudio from "./audio"
 import { win32DisableProcessedInput, win32FlushInputBuffer } from "./terminal-win32"
 import { destroyRenderer } from "./util/renderer"
 import { cliErrorMessage, errorFormat } from "./util/error"
+import { SwarmProvider, useSwarm, openSwarmOverlay, SwarmStatusBar, swarmCommands } from "./swarm"
 
 registerOpencodeSpinner()
 
@@ -307,7 +308,8 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
                                               <SyncProvider>
                                                 <DataProvider>
                                                   <ThemeProvider mode={mode}>
-                                                    <LocalProvider>
+                                                    <SwarmProvider>
+                                                      <LocalProvider>
                                                       <PromptStashProvider>
                                                         <DialogProvider>
                                                           <FrecencyProvider>
@@ -327,6 +329,7 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
                                                         </DialogProvider>
                                                       </PromptStashProvider>
                                                     </LocalProvider>
+                                                    </SwarmProvider>
                                                   </ThemeProvider>
                                                 </DataProvider>
                                               </SyncProvider>
@@ -384,6 +387,8 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
   const pluginRuntime = usePluginRuntime()
   const attention = createTuiAttention({ renderer, config: tuiConfig, kv })
   const clipboard = useClipboard()
+  const swarm = useSwarm()
+  const [swarmStatusEnabled, setSwarmStatusEnabled] = createSignal(kv.get("swarm_status_enabled", true))
 
   const api = createTuiApi(
     createTuiApiAdapters({
@@ -953,6 +958,64 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
           dialog.clear()
         },
       },
+      {
+        name: "swarm.toggle_status",
+        title: swarmStatusEnabled() ? "Hide swarm status bar" : "Show swarm status bar",
+        category: "Swarm",
+        run: () => {
+          setSwarmStatusEnabled((prev) => {
+            const next = !prev
+            kv.set("swarm_status_enabled", next)
+            return next
+          })
+          dialog.clear()
+        },
+      },
+      {
+        name: "swarm.pause",
+        title: "Pause / resume swarm",
+        category: "Swarm",
+        run: () => {
+          const bridge = swarm.bridge
+          if (bridge === undefined) return
+          if (swarm.snapshot?.paused) bridge.resume()
+          else bridge.pause()
+          swarm.refresh()
+          dialog.clear()
+        },
+      },
+      {
+        name: "swarm.emergency_stop",
+        title: "Emergency stop",
+        category: "Swarm",
+        run: () => {
+          const bridge = swarm.bridge
+          if (bridge === undefined) return
+          bridge.emergencyStop()
+          swarm.refresh()
+          dialog.clear()
+          toast.show({
+            title: "EMERGENCY STOP",
+            message: "Scheduling halted; swarm state preserved. Resume from the swarm overlay.",
+            variant: "error",
+            duration: 8000,
+          })
+        },
+      },
+      {
+        name: "swarm.resume_from_stop",
+        title: "Resume from emergency stop",
+        category: "Swarm",
+        run: () => {
+          const bridge = swarm.bridge
+          if (bridge === undefined) return
+          bridge.resumeFromStop()
+          swarm.refresh()
+          dialog.clear()
+          toast.show({ message: "Emergency stop released; scheduling resumed", variant: "success" })
+        },
+      },
+      ...swarmCommands(dialog),
     ].map((command) => ({
       namespace: "palette",
       ...command,
@@ -970,6 +1033,20 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
 
   useBindings(() => ({
     bindings: tuiConfig.keybinds.gather("app.global", appGlobalBindingCommands),
+  }))
+
+  useBindings(() => ({
+    mode: OPENCODE_BASE_MODE,
+    bindings: [
+      { key: "<leader>s", desc: "Open swarm operations", group: "Swarm", cmd: () => openSwarmOverlay(dialog) },
+      { key: "<leader>p", desc: "Pause / resume swarm", group: "Swarm", cmd: () => {
+        const bridge = swarm.bridge
+        if (bridge === undefined) return
+        if (swarm.snapshot?.paused) bridge.resume()
+        else bridge.pause()
+        swarm.refresh()
+      } },
+    ],
   }))
 
   useBindings(() => ({
@@ -1124,6 +1201,11 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
         <box flexShrink={0}>
           <pluginRuntime.Slot name="app_bottom" />
         </box>
+        <Show when={swarmStatusEnabled()}>
+          <box paddingLeft={2} paddingRight={2} flexShrink={0}>
+            <SwarmStatusBar />
+          </box>
+        </Show>
         <pluginRuntime.Slot name="app" />
       </Show>
       <Show when={!startup.skipInitialLoading}>

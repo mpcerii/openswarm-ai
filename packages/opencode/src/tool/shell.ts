@@ -609,9 +609,10 @@ export const ShellTool = Tool.define(
           execute: (params: Parameters, ctx: Tool.Context) =>
             Effect.gen(function* () {
               const instanceCtx = yield* InstanceState.context
-              const cwd = params.workdir
-                ? yield* resolvePath(params.workdir, instanceCtx.directory, shell)
-                : instanceCtx.directory
+              // Session-scoped directory wins over the instance directory so
+              // coding agents run shell commands inside their isolated worktree.
+              const base = ctx.directory ?? instanceCtx.directory
+              const cwd = params.workdir ? yield* resolvePath(params.workdir, base, shell) : base
               if (params.timeout !== undefined && params.timeout < 0) {
                 throw new Error(`Invalid timeout value: ${params.timeout}. Timeout must be a positive number.`)
               }

@@ -24,6 +24,10 @@ export const assertExternalDirectoryEffect = Effect.fn("Tool.assertExternalDirec
   const ins = yield* InstanceState.context
   const full = process.platform === "win32" ? FSUtil.normalizePath(target) : target
   if (containsPath(full, ins)) return false
+  // A session may run inside its own working directory (e.g. an isolated
+  // worktree for a coding agent). Paths within that session directory are NOT
+  // "external" — treat them as inside the session's project boundary.
+  if (ctx.directory !== undefined && FSUtil.contains(ctx.directory, full)) return false
 
   const kind = options?.kind ?? "file"
   const dir = kind === "directory" ? full : path.dirname(full)

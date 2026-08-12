@@ -54,6 +54,16 @@ import { ModelV2 } from "@opencode-ai/core/model"
 import { MCP } from "@/mcp"
 import { PermissionV1 } from "@opencode-ai/core/v1/permission"
 import { McpCatalog } from "@/mcp/catalog"
+import { SwarmService } from "@/swarm/service"
+import {
+  SpawnAgentTool,
+  SpawnAgentsTool,
+  ListAgentsTool,
+  SendAgentMessageTool,
+  GetAgentResultTool,
+  CancelAgentTool,
+  WaitForAgentsTool,
+} from "@/swarm/tools"
 
 export function webSearchEnabled(providerID: ProviderV2.ID, flags = { exa: false, parallel: false }) {
   return providerID === ProviderV2.ID.opencode || flags.exa || flags.parallel
@@ -112,6 +122,24 @@ const layer = Layer.effect(
     const agent = yield* Agent.Service
     const codeMode = flags.experimentalCodeMode ? yield* Effect.promise(() => import("./code-mode")) : undefined
     const codeModeTool = codeMode ? yield* codeMode.CodeModeTool : undefined
+
+    // Resolve the swarm tool definitions only when the SwarmService is actually
+    // provided in this layer graph (the server/TUI app wires it; unit-test
+    // layers that compile ToolRegistry.node without git do not). Registration
+    // into the builtin list is ALSO gated on config.swarm.enabled below.
+    const swarmServiceOption = yield* Effect.serviceOption(SwarmService.Service)
+    const swarmInfos =
+      swarmServiceOption._tag === "Some"
+        ? yield* Effect.all({
+            spawnAgent: SpawnAgentTool,
+            spawnAgents: SpawnAgentsTool,
+            listAgents: ListAgentsTool,
+            sendAgentMessage: SendAgentMessageTool,
+            getAgentResult: GetAgentResultTool,
+            cancelAgent: CancelAgentTool,
+            waitForAgents: WaitForAgentsTool,
+          })
+        : undefined
 
     const state = yield* InstanceState.make<State>(
       Effect.fn("ToolRegistry.state")(function* (ctx) {
@@ -201,6 +229,22 @@ const layer = Layer.effect(
         yield* config.get()
         const questionEnabled = ["app", "cli", "desktop"].includes(flags.client) || flags.enableQuestionTool
 
+        // Swarm orchestration tools are exposed to the primary agent only when
+        // the user enabled the swarm layer (swarm.enabled=true). When disabled
+        // the tool list is identical to upstream OpenCode.
+        const swarmEnabled = (yield* config.get()).swarm?.enabled === true
+        const swarmTool = swarmEnabled && swarmInfos !== undefined
+          ? yield* Effect.all({
+              spawnAgent: Tool.init(swarmInfos.spawnAgent),
+              spawnAgents: Tool.init(swarmInfos.spawnAgents),
+              listAgents: Tool.init(swarmInfos.listAgents),
+              sendAgentMessage: Tool.init(swarmInfos.sendAgentMessage),
+              getAgentResult: Tool.init(swarmInfos.getAgentResult),
+              cancelAgent: Tool.init(swarmInfos.cancelAgent),
+              waitForAgents: Tool.init(swarmInfos.waitForAgents),
+            })
+          : undefined
+
         const tool = yield* Effect.all({
           invalid: Tool.init(invalid),
           shell: Tool.init(shell),
@@ -238,6 +282,8 @@ const layer = Layer.effect(
             tool.search,
             tool.skill,
             tool.patch,
+            ...(swarmTool ? [swarmTool.spawnAgent, swarmTool.spawnAgents, swarmTool.listAgents] : []),
+            ...(swarmTool ? [swarmTool.sendAgentMessage, swarmTool.getAgentResult, swarmTool.cancelAgent, swarmTool.waitForAgents] : []),
             ...(tool.execute ? [tool.execute] : []),
             ...(flags.experimentalLspTool ? [tool.lsp] : []),
             ...(flags.experimentalPlanMode && flags.client === "cli" ? [tool.plan] : []),
@@ -444,6 +490,7 @@ export const node = LayerNode.make({
     MCP.node,
     Database.node,
     Ripgrep.node,
+    SwarmService.node,
   ],
 })
 

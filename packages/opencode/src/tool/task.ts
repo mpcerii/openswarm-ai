@@ -159,6 +159,9 @@ export const TaskTool = Tool.define(
           parentID: ctx.sessionID,
           title: params.description + ` (@${next.name} subagent)`,
           agent: next.name,
+          // Subagents inherit the parent session's working directory so work
+          // done inside an isolated worktree stays contained in that worktree.
+          directory: parent.directory,
           permission: [
             ...childPermission,
             ...childToolDenies.filter(

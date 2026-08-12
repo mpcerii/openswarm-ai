@@ -1,0 +1,8 @@
+export { SwarmBridge, SwarmEmergencyError, type ApproveScope, type BridgeOptions } from "./bridge"
+export { SwarmProvider, useSwarm } from "./context"
+export { createDemoBridge, createDemoRuntime, seedPopulation, type DemoOptions } from "./seed"
+export { openSwarmOverlay, SwarmOverlay, type OverlayActions, type OverlayStore, type SwarmTab } from "./ui/overlay"
+export { SwarmStatusBar } from "./ui/status-bar"
+export { severityColor, severityMarker, stateColor, compact, fmtTime } from "./ui/common"
+export { swarmCommands } from "./commands"
+export * as SwarmUiState from "./state"

@@ -41,6 +41,10 @@ export type Context<M extends Metadata = Metadata> = {
   callID?: string
   extra?: { [key: string]: unknown }
   messages: SessionV1.WithParts[]
+  // Session-scoped working directory. Tools MUST resolve filesystem paths
+  // against this when present, falling back to the instance directory. This is
+  // what allows child coding sessions to operate inside an isolated worktree.
+  directory?: string
   metadata(input: { title?: string; metadata?: M }): Effect.Effect<void>
   ask(input: Omit<PermissionV1.Request, "id" | "sessionID" | "tool">): Effect.Effect<void>
 }

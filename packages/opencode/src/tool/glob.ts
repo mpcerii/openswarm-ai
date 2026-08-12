@@ -25,6 +25,7 @@ export const GlobTool = Tool.define(
       execute: (params: { pattern: string; path?: string }, ctx: Tool.Context) =>
         Effect.gen(function* () {
           const ins = yield* InstanceState.context
+          const base = ctx.directory ?? ins.directory
           yield* ctx.ask({
             permission: "glob",
             patterns: [params.pattern],
@@ -35,8 +36,8 @@ export const GlobTool = Tool.define(
             },
           })
 
-          let search = params.path ?? ins.directory
-          search = path.isAbsolute(search) ? search : path.resolve(ins.directory, search)
+          let search = params.path ?? base
+          search = path.isAbsolute(search) ? search : path.resolve(base, search)
           const info = yield* fs.stat(search).pipe(Effect.catch(() => Effect.succeed(undefined)))
           if (info?.type === "File") {
             throw new Error(`glob path must be a directory: ${search}`)
