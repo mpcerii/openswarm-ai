@@ -78,7 +78,10 @@ export class ServerSwarmBridge {
       this.configErrorsValue = status.errors
       this.errorValue = undefined
     } catch (error) {
-      this.errorValue = error instanceof Error ? error.message : String(error)
+      this.errorValue =
+        (error instanceof Error ? error.message : String(error)) +
+        ("\n" + JSON.stringify(error, null, 2).slice(0, 3000))
+      console.error("[swarm-bridge] tick error:", error)
     }
   }
 
@@ -95,7 +98,10 @@ export class ServerSwarmBridge {
   }> {
     const url = this.endpoint("/swarm/status")
     const res = await this.fetch(url, { headers: this.headers })
-    if (!res.ok) throw new Error(`swarm status: HTTP ${res.status} ${res.statusText}`)
+    if (!res.ok) {
+      const text = await res.text().catch(() => "")
+      throw new Error(`swarm status: HTTP ${res.status} ${res.statusText}${text ? ": " + text : ""}`)
+    }
     const body = (await res.json()) as Record<string, unknown>
     // The swarm status endpoint returns the status object DIRECTLY (no
     // { data: ... } wrapper) — see test/server/swarm-contract.test.ts. Some
@@ -138,7 +144,10 @@ export class ServerSwarmBridge {
   }> {
     const url = this.endpoint("/swarm/agents")
     const res = await this.fetch(url, { headers: this.headers })
-    if (!res.ok) throw new Error(`swarm agents: HTTP ${res.status} ${res.statusText}`)
+    if (!res.ok) {
+      const text = await res.text().catch(() => "")
+      throw new Error(`swarm agents: HTTP ${res.status} ${res.statusText}${text ? ": " + text : ""}`)
+    }
     const body = (await res.json()) as Record<string, unknown>
     const data = (body.data !== undefined && typeof body.data === "object" ? body.data : body) as {
       agents?: Array<{ id: string; state: string; role?: string; model?: string; sessionID?: string; mission: string }>
