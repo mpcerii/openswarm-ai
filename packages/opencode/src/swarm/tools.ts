@@ -393,9 +393,63 @@ export const WaitForAgentsTool = Tool.define(
   }),
 )
 
+const id8 = "swarm_memory_set"
+
+export const MemorySetTool = Tool.define(
+  id8,
+  Effect.gen(function* () {
+    const swarm = yield* SwarmService.Service
+    const Parameters = Schema.Struct({
+      key: Schema.String.annotate({ description: "Short identifier for this note (e.g. 'decision:auth-flow')" }),
+      content: Schema.String.annotate({ description: "The note content other agents should know" }),
+    })
+    const run = Effect.fn("SwarmTools.memory_set.execute")(function* (
+      params: Schema.Schema.Type<typeof Parameters>,
+    ) {
+      yield* swarm.memorySet(params.key, params.content)
+      return { title: "swarm_memory_set", metadata: {}, output: `Memory "${params.key}" saved.` }
+    })
+    return {
+      description: "Persist a note into the shared team memory so spawned agents can read it later.",
+      parameters: Parameters,
+      jsonSchema: ToolJsonSchema.fromSchema(Parameters),
+      execute: (params: Schema.Schema.Type<typeof Parameters>, _ctx: Tool.Context) => run(params).pipe(Effect.orDie),
+    }
+  }),
+)
+
+const id9 = "swarm_memory_get"
+
+export const MemoryGetTool = Tool.define(
+  id9,
+  Effect.gen(function* () {
+    const swarm = yield* SwarmService.Service
+    const Parameters = Schema.Struct({
+      key: Schema.optional(Schema.String).annotate({ description: "Note identifier. Omit to list all notes." }),
+    })
+    const run = Effect.fn("SwarmTools.memory_get.execute")(function* (
+      params: Schema.Schema.Type<typeof Parameters>,
+    ) {
+      if (params.key !== undefined) {
+        const content = yield* swarm.memoryGet(params.key)
+        return { title: "swarm_memory_get", metadata: {}, output: content ?? `No memory under "${params.key}".` }
+      }
+      const entries = yield* swarm.memoryList()
+      const lines = entries.map((e) => `${e.key}: ${e.content.slice(0, 400)}`)
+      return { title: "swarm_memory_get", metadata: {}, output: lines.length > 0 ? lines.join("\n") : "Team memory is empty." }
+    })
+    return {
+      description: "Read a note from the shared team memory, or list all notes when no key is given.",
+      parameters: Parameters,
+      jsonSchema: ToolJsonSchema.fromSchema(Parameters),
+      execute: (params: Schema.Schema.Type<typeof Parameters>, _ctx: Tool.Context) => run(params).pipe(Effect.orDie),
+    }
+  }),
+)
+
 // All swarm tools registered when swarm.enabled. The list is stable so the
 // registry can spread it into builtins conditionally.
-export const all = [SpawnAgentTool, SpawnAgentsTool, ListAgentsTool, SendAgentMessageTool, GetAgentResultTool, CancelAgentTool, WaitForAgentsTool]
+export const all = [SpawnAgentTool, SpawnAgentsTool, ListAgentsTool, SendAgentMessageTool, GetAgentResultTool, CancelAgentTool, WaitForAgentsTool, MemorySetTool, MemoryGetTool]
 
 export function swarmToolIds(): string[] {
   return all.map((t) => t.id)

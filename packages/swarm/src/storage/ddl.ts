@@ -119,4 +119,9 @@ export const CLUSTER_DDL: string[] = [
     id TEXT PRIMARY KEY,
     enabled INTEGER NOT NULL DEFAULT 1
   )`,
+  `CREATE TABLE IF NOT EXISTS swarm_store_memory (
+    key TEXT PRIMARY KEY,
+    content TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
 ]

@@ -270,6 +270,24 @@ export class MemoryStore implements DurableStore {
     this.modelOverrides.set(id, enabled)
   }
 
+  private readonly memories = new Map<string, { content: string; updated_at: number }>()
+
+  async memorySet(key: string, content: string): Promise<void> {
+    this.memories.set(key, { content, updated_at: Date.now() })
+  }
+
+  async memoryGet(key: string): Promise<string | undefined> {
+    return this.memories.get(key)?.content
+  }
+
+  async memoryList(): Promise<Array<{ key: string; content: string; updated_at: number }>> {
+    return [...this.memories.entries()].map(([key, v]) => ({ key, content: v.content, updated_at: v.updated_at })).sort((a, b) => b.updated_at - a.updated_at)
+  }
+
+  async memoryDelete(key: string): Promise<void> {
+    this.memories.delete(key)
+  }
+
   async putWorker(record: SwarmWorker.Record): Promise<void> {
     this.workers.set(record.id, record)
   }

@@ -153,6 +153,14 @@ export interface DurableStore {
   listEnabledModels(): Promise<string[]>
   setModelEnabled(id: string, enabled: boolean): Promise<void>
 
+  // -------------------------------------------------------------- team memory
+  // Durable shared notes the swarm can read/write so agents build on each
+  // other's findings instead of re-discovering the same facts.
+  memorySet(key: string, content: string): Promise<void>
+  memoryGet(key: string): Promise<string | undefined>
+  memoryList(): Promise<Array<{ key: string; content: string; updated_at: number }>>
+  memoryDelete(key: string): Promise<void>
+
   // ----------------------------------------------------------------- workers
   putWorker(record: SwarmWorker.Record): Promise<void>
   getWorker(id: string): Promise<SwarmWorker.Record | undefined>

@@ -256,6 +256,24 @@ export class SqliteStore implements DurableStore {
     this.db.prepare(`INSERT INTO swarm_store_model (id, enabled) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET enabled = excluded.enabled`).run(id, enabled ? 1 : 0)
   }
 
+  async memorySet(key: string, content: string): Promise<void> {
+    this.db.prepare(`INSERT INTO swarm_store_memory (key, content, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET content = excluded.content, updated_at = excluded.updated_at`).run(key, content, Date.now())
+  }
+
+  async memoryGet(key: string): Promise<string | undefined> {
+    const row = this.db.prepare(`SELECT content FROM swarm_store_memory WHERE key = ?`).get(key) as { content: string } | undefined
+    return row?.content
+  }
+
+  async memoryList(): Promise<Array<{ key: string; content: string; updated_at: number }>> {
+    const rows = this.db.prepare(`SELECT key, content, updated_at FROM swarm_store_memory ORDER BY updated_at DESC`).all() as Array<{ key: string; content: string; updated_at: number }>
+    return rows
+  }
+
+  async memoryDelete(key: string): Promise<void> {
+    this.db.prepare(`DELETE FROM swarm_store_memory WHERE key = ?`).run(key)
+  }
+
   async putWorker(record: SwarmWorker.Record): Promise<void> {
     this.db
       .prepare(`INSERT INTO swarm_store_worker (id, payload, health, last_heartbeat) VALUES (?, ?, ?, ?)

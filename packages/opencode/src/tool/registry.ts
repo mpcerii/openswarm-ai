@@ -63,6 +63,8 @@ import {
   GetAgentResultTool,
   CancelAgentTool,
   WaitForAgentsTool,
+  MemorySetTool,
+  MemoryGetTool,
 } from "@/swarm/tools"
 
 export function webSearchEnabled(providerID: ProviderV2.ID, flags = { exa: false, parallel: false }) {
@@ -138,6 +140,8 @@ const layer = Layer.effect(
             getAgentResult: GetAgentResultTool,
             cancelAgent: CancelAgentTool,
             waitForAgents: WaitForAgentsTool,
+            memorySet: MemorySetTool,
+            memoryGet: MemoryGetTool,
           })
         : undefined
 
@@ -242,6 +246,8 @@ const layer = Layer.effect(
               getAgentResult: Tool.init(swarmInfos.getAgentResult),
               cancelAgent: Tool.init(swarmInfos.cancelAgent),
               waitForAgents: Tool.init(swarmInfos.waitForAgents),
+              memorySet: Tool.init(swarmInfos.memorySet),
+              memoryGet: Tool.init(swarmInfos.memoryGet),
             })
           : undefined
 
@@ -284,6 +290,7 @@ const layer = Layer.effect(
             tool.patch,
             ...(swarmTool ? [swarmTool.spawnAgent, swarmTool.spawnAgents, swarmTool.listAgents] : []),
             ...(swarmTool ? [swarmTool.sendAgentMessage, swarmTool.getAgentResult, swarmTool.cancelAgent, swarmTool.waitForAgents] : []),
+            ...(swarmTool ? [swarmTool.memorySet, swarmTool.memoryGet] : []),
             ...(tool.execute ? [tool.execute] : []),
             ...(flags.experimentalLspTool ? [tool.lsp] : []),
             ...(flags.experimentalPlanMode && flags.client === "cli" ? [tool.plan] : []),

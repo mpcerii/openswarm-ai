@@ -101,6 +101,10 @@ export interface Interface {
   // Toggle a model's runtime authorization (add/remove from the effective
   // allowlist). Persisted durably in the swarm store.
   readonly toggleModel: (modelID: string, enabled: boolean) => Effect.Effect<void>
+  // Team memory: durable shared notes agents can read/write.
+  readonly memorySet: (key: string, content: string) => Effect.Effect<void>
+  readonly memoryGet: (key: string) => Effect.Effect<string | undefined>
+  readonly memoryList: () => Effect.Effect<Array<{ key: string; content: string; updated_at: number }>>
   // Mutation surface (real server-backed controls).
   readonly cancelBranch: (rootAgentID: string) => Effect.Effect<{ cancelled: string[] }>
   readonly paused: () => Effect.Effect<boolean>
@@ -237,6 +241,10 @@ export function makeImpl(deps: {
       yield* effectiveAllowlist()
       yield* storePromise((s) => s.setModelEnabled(modelID, enabled))
     })
+
+  const memorySet: Interface["memorySet"] = (key, content) => storePromise((s) => s.memorySet(key, content))
+  const memoryGet: Interface["memoryGet"] = (key) => storePromise((s) => s.memoryGet(key))
+  const memoryList: Interface["memoryList"] = () => storePromise((s) => s.memoryList())
 
   const spawn: Interface["spawn"] = (input, ops) =>
     Effect.gen(function* () {
@@ -633,6 +641,9 @@ export function makeImpl(deps: {
     approvedModelIDs,
     modelStates,
     toggleModel,
+    memorySet,
+    memoryGet,
+    memoryList,
     paused,
     pause,
     resume,
