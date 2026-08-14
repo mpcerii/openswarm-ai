@@ -1,8 +1,9 @@
 import { For, Show, createMemo, createSignal } from "solid-js"
-import { TextAttributes } from "@opentui/core"
+import { TextAttributes, type ScrollBoxRenderable } from "@opentui/core"
 import { useTheme } from "../../context/theme"
 import { useSwarm } from "../context"
 import { useBindings } from "../../keymap"
+import { getScrollAcceleration } from "../../util/scroll"
 import type { OverlayStore, OverlayActions } from "./overlay"
 import type { SetStoreFunction } from "solid-js/store"
 
@@ -28,14 +29,31 @@ export function ModelsView(props: {
   const { theme } = useTheme()
   const swarm = useSwarm()
   const [selected, setSelected] = createSignal(0)
+  let scroll: ScrollBoxRenderable | undefined
 
   const snapshot = () => swarm.snapshot!
   const models = createMemo(() => snapshot().models)
   const detail = createMemo(() => models()[selected()])
 
+  // Keep the selected row inside the scroll viewport, following the window size.
+  function keepVisible(index: number) {
+    if (scroll === undefined) return
+    const viewport = scroll.viewport.height
+    if (index < scroll.scrollTop) scroll.scrollTo(index)
+    if (index >= scroll.scrollTop + viewport) scroll.scrollTo(index - viewport + 1)
+  }
+
   function move(direction: number) {
-    if (models().length === 0) return
-    setSelected((selected() + direction + models().length) % models().length)
+    const n = models().length
+    if (n === 0) return
+    const next = (selected() + direction + n) % n
+    setSelected(next)
+    keepVisible(next)
+  }
+
+  function scrollPage(direction: number) {
+    if (scroll === undefined) return
+    scroll.scrollBy(direction * scroll.viewport.height)
   }
 
   const healthFg = (m: { health: string; disabled: boolean }) => {
@@ -53,12 +71,16 @@ export function ModelsView(props: {
         const m = detail()
         if (m !== undefined) props.actions.disableModel(m.model, !m.disabled)
       } },
+      { name: "swarm.models.pageup", title: "Scroll up", category: "Swarm", run: () => scrollPage(-1) },
+      { name: "swarm.models.pagedown", title: "Scroll down", category: "Swarm", run: () => scrollPage(1) },
     ],
     bindings: [
       { key: "up", desc: "Previous model", group: "Swarm", cmd: "swarm.models.prev" },
       { key: "down", desc: "Next model", group: "Swarm", cmd: "swarm.models.next" },
       { key: "d", desc: "Disable / enable model", group: "Swarm", cmd: "swarm.models.toggle" },
       { key: "e", desc: "Disable / enable model", group: "Swarm", cmd: "swarm.models.toggle" },
+      { key: "pageup", desc: "Scroll up", group: "Swarm", cmd: "swarm.models.pageup" },
+      { key: "pagedown", desc: "Scroll down", group: "Swarm", cmd: "swarm.models.pagedown" },
     ],
   }))
 
@@ -69,8 +91,14 @@ export function ModelsView(props: {
           Models ({models().length}) — human-owned policy
         </text>
       </box>
-      <text fg={theme.textMuted}>d/e toggle disabled (stops scheduling on the model, keeps the allowlist)</text>
-      <box flexGrow={1} minHeight={0}>
+      <text fg={theme.textMuted}>d/e toggle model · ↑/↓ select · pgup/pgdn scroll</text>
+      <scrollbox
+        ref={(element: ScrollBoxRenderable) => (scroll = element)}
+        flexGrow={1}
+        minHeight={0}
+        scrollbarOptions={{ visible: false }}
+        scrollAcceleration={getScrollAcceleration()}
+      >
         <For each={models()}>
           {(model, index) => {
             const active = index() === selected()
@@ -112,7 +140,7 @@ export function ModelsView(props: {
             )
           }}
         </For>
-      </box>
+      </scrollbox>
       <Show when={detail() !== undefined}>
         {(() => {
           const m = detail()!
