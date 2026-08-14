@@ -1,0 +1,56 @@
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (e.g. 1.0.0). Leave empty to use the tag name."
+        required: false
+        type: string
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-bun
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            V="${{ inputs.version }}"
+          elif [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            V="${GITHUB_REF_NAME#v}"
+          else
+            V="0.0.0-$(date -u +%Y%m%d%H%M%S)"
+          fi
+          V="${V#v}"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ steps.version.outputs.version }}" \
+            --generate-notes \
+            --repo "$GITHUB_REPOSITORY" || true
+
+      - name: Build and upload binaries
+        env:
+          OPENCODE_RELEASE: "true"
+          OPENCODE_VERSION: "${{ steps.version.outputs.version }}"
+          OPENCODE_CHANNEL: "latest"
+          GH_REPO: "$GITHUB_REPOSITORY"
+          GH_TOKEN: "${{ github.token }}"
+        run: |
+          cd packages/opencode
+          bun run build --skip-embed-web-ui
