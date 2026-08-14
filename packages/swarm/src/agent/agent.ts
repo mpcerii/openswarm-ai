@@ -56,7 +56,7 @@ export const Info = Schema.Struct({
   // before use, and the model the runtime actually resolved.
   model: optional(Schema.String),
   resolvedModel: optional(Schema.String),
-  // OpenCode session backing the agent while it executes (absent when idle).
+  // openSwarm session backing the agent while it executes (absent when idle).
   sessionID: optional(SessionID),
   // Spawn credits delegated to this agent by its parent (for recursive spawn).
   spawnCredits: NonNegativeInt,

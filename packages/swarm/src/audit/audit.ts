@@ -53,7 +53,7 @@ export type StoredEvent = {
 
 // In-memory event sink. Reuses the durable event vocabulary from
 // SwarmEvents.Definitions but writes a flat, append-only, redacted store. The
-// real OpenCode bridge later reuses `EventV2` durability; this stand-in keeps
+// real openSwarm bridge later reuses `EventV2` durability; this stand-in keeps
 // the kernel testable & deterministic without SQLite.
 export interface AuditLog {
   readonly events: StoredEvent[]

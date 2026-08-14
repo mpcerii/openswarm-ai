@@ -1,7 +1,7 @@
 import { UI } from "../ui"
 import * as prompts from "@clack/prompts"
 
-// openSwarm has no release channel: self-upgrade would fetch upstream OpenCode
+// openSwarm has no release channel: self-upgrade would fetch upstream openSwarm
 // releases and silently replace this fork, so the command only explains how to
 // update from source.
 export const UpgradeCommand = {

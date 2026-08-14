@@ -26,7 +26,7 @@ export const Allocation = Schema.Struct({
   branch: optional(Schema.String),
 }).annotate({ identifier: "SwarmWorkspace.Allocation" })
 
-// Backend seam — the real implementation calls OpenCode's `Worktree` service
+// Backend seam — the real implementation calls openSwarm's `Worktree` service
 // (shadow repos under Global.Path.data/worktree). The swarm package only
 // depends on schema+effect, so the kernel offers this injectable interface;
 // tests use an in-memory backend.

@@ -12,7 +12,7 @@ import { SwarmConfigBridge } from "./config"
 // Real swarm tools for the primary agent. Registered only when
 // `swarm.enabled` is true (see tool/registry.ts). Every tool routes through
 // the SwarmService production API — the LLM never instantiates runtime
-// classes. Spawned agents execute through the REAL OpenCode session loop via
+// classes. Spawned agents execute through the REAL openSwarm session loop via
 // the same promptOps machinery the `task` tool uses.
 // ---------------------------------------------------------------------------
 
@@ -114,7 +114,7 @@ export const SpawnAgentTool = Tool.define(
 
     return {
       description: [
-        `Spawn a new logical swarm agent. The agent will execute through a real OpenCode session using a real model.`,
+        `Spawn a new logical swarm agent. The agent will execute through a real openSwarm session using a real model.`,
         `Model policy is enforced server-side: the requested model must be in "swarm.models.allowed", otherwise the spawn is rejected.`,
         `The agent runs asynchronously; use get_agent_result to fetch its result, or cancel_agent to cancel it.`,
       ].join(" "),

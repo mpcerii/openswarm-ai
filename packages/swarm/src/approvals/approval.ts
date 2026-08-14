@@ -26,7 +26,7 @@ export const Action = Schema.Literals([
 ]).annotate({ identifier: "SwarmApproval.Action" })
 export type Action = typeof Action.Type
 
-// Mirrors OpenCode permission vocabulary so approvals evaluate through the
+// Mirrors openSwarm permission vocabulary so approvals evaluate through the
 // existing permission engine.
 export const Effect = Schema.Literals(["allow", "ask", "deny"]).annotate({
   identifier: "SwarmApproval.Effect",

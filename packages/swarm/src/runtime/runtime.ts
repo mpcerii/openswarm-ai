@@ -42,7 +42,7 @@ function missionOf(state: KernelState, agentID: SwarmAgent.ID): string {
 
 // ---------------------------------------------------------------------------
 // Kernel parameters. Injectable so the simulation swaps the provider & workspace
-// backend, and so the real OpenCode bridge later plugs in its LLM provider,
+// backend, and so the real openSwarm bridge later plugs in its LLM provider,
 // snapshot-backed worktree service, and durable event sink — without touching
 // the kernel or its tests.
 // ---------------------------------------------------------------------------
@@ -206,7 +206,7 @@ export class SwarmRuntime {
   }
 
   // -----------------------------------------------------------------------
-  // Primary agent registration. The kernel never replaces OpenCode's `build`
+  // Primary agent registration. The kernel never replaces openSwarm's `build`
   // agent; it bookmarks the primary's id so spawned agents share the same
   // rootID/mission.
   // -----------------------------------------------------------------------

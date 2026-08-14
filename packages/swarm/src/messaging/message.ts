@@ -16,7 +16,7 @@ export const Sender = Schema.Union([SwarmAgent.ID, Schema.Literals(["human", "pr
 })
 export type Sender = typeof Sender.Type
 
-// Mirrors OpenCode SessionInput delivery vocabulary: "steer" promotes at the
+// Mirrors openSwarm SessionInput delivery vocabulary: "steer" promotes at the
 // next safe provider-turn boundary, "queue" waits until the session is idle.
 export const Delivery = Schema.Literals(["steer", "queue"]).annotate({
   identifier: "SwarmMessage.Delivery",

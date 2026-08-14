@@ -231,7 +231,7 @@ const layer = Layer.effect(
 
         // Swarm orchestration tools are exposed to the primary agent only when
         // the user enabled the swarm layer (swarm.enabled=true). When disabled
-        // the tool list is identical to upstream OpenCode.
+        // the tool list is identical to upstream openSwarm.
         const swarmEnabled = (yield* config.get()).swarm?.enabled === true
         const swarmTool = swarmEnabled && swarmInfos !== undefined
           ? yield* Effect.all({

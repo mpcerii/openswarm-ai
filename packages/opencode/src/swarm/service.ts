@@ -24,10 +24,10 @@ import { SwarmWorktreeBackend } from "./worktree-backend"
 
 // ---------------------------------------------------------------------------
 // SwarmService: the production bridge between the swarm kernel and the real
-// OpenCode session runtime. Owns a durable SqliteStore (Global.Path.data/
+// openSwarm session runtime. Owns a durable SqliteStore (Global.Path.data/
 // swarm.db), resolves swarm config from the user's opencode.json, enforces
 // the model allowlist against the REAL configured provider catalog, and
-// executes every spawned agent through a REAL OpenCode child session (the
+// executes every spawned agent through a REAL openSwarm child session (the
 // same machinery the `task` tool uses). No fake provider, no second engine.
 // ---------------------------------------------------------------------------
 
@@ -313,7 +313,7 @@ export function makeImpl(deps: {
         )
       }
 
-      // 5. Create a REAL child OpenCode session for the agent, rooted at its
+      // 5. Create a REAL child openSwarm session for the agent, rooted at its
       //    workspace directory (session-scoped cwd).
       const created = yield* deps.sessions.create({
         parentID: input.parentSessionID ? (input.parentSessionID as SessionID) : undefined,
@@ -328,7 +328,7 @@ export function makeImpl(deps: {
       const updatedAgent: SwarmAgent.AgentRecord = { ...agent, sessionID: created.id as never }
       yield* storePromise((s) => s.putAgent(updatedAgent))
 
-      // 6. Execute the agent through the REAL OpenCode session loop. The job
+      // 6. Execute the agent through the REAL openSwarm session loop. The job
       //    is keyed by the child session id; the primary can wait on it via
       //    wait_for_agents / get_agent_result. This is the exact machinery the
       //    `task` tool uses (BackgroundJob + SessionPrompt.prompt).

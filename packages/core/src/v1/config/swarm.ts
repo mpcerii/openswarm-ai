@@ -5,13 +5,13 @@ import { NonNegativeInt, PositiveInt, type DeepMutable } from "../../schema"
 
 export const ApprovalAction = Schema.Literals(["allow", "ask", "deny"]).annotate({
   identifier: "SwarmApprovalAction",
-  description: "Approval effect evaluated through the OpenCode permission engine",
+  description: "Approval effect evaluated through the openSwarm permission engine",
 })
 
 export const Info = Schema.Struct({
   enabled: Schema.optional(Schema.Boolean).annotate({
     description:
-      "Enable the openSwarm multi-agent layer. When false (default), swarm tools are not registered and behavior matches upstream OpenCode.",
+      "Enable the openSwarm multi-agent layer. When false (default), swarm tools are not registered and behavior matches upstream openSwarm.",
   }),
   max_agents: Schema.optional(PositiveInt).annotate({
     description:
@@ -48,7 +48,7 @@ export const Info = Schema.Struct({
     }),
   ).annotate({
     description:
-      "Approval policy for swarm agents. Values map onto OpenCode permission rules; existing permission semantics are preserved.",
+      "Approval policy for swarm agents. Values map onto openSwarm permission rules; existing permission semantics are preserved.",
   }),
 }).annotate({ identifier: "SwarmConfig" })
 

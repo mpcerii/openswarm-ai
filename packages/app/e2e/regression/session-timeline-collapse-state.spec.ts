@@ -1,8 +1,8 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
-import { mockOpenCodeServer } from "../utils/mock-server"
+import { mockopenSwarmServer } from "../utils/mock-server"
 import { expectAppVisible, expectSessionTitle } from "../utils/waits"
 
-const directory = "C:/OpenCode/TimelineStateRegression"
+const directory = "C:/openSwarm/TimelineStateRegression"
 const projectID = "proj_timeline_state_regression"
 const sessionID = "ses_timeline_state_regression"
 const userMessageID = "msg_user_regression"
@@ -386,7 +386,7 @@ function readExpanded(element: Element) {
 }
 
 async function mockServer(page: Page, events: EventPayload[], messages = [userMessage, assistantMessage]) {
-  await mockOpenCodeServer(page, {
+  await mockopenSwarmServer(page, {
     directory,
     project: project(),
     provider: provider(),
@@ -425,7 +425,7 @@ function provider() {
     all: [
       {
         id: "opencode",
-        name: "OpenCode",
+        name: "openSwarm",
         models: { "claude-opus-4-6": { id: "claude-opus-4-6", name: "Claude Opus 4.6", limit: { context: 200_000 } } },
       },
     ],
