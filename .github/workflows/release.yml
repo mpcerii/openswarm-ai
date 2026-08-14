@@ -49,7 +49,7 @@ jobs:
           OPENCODE_RELEASE: "true"
           OPENCODE_VERSION: "${{ steps.version.outputs.version }}"
           OPENCODE_CHANNEL: "latest"
-          GH_REPO: "$GITHUB_REPOSITORY"
+          GH_REPO: "${{ github.repository }}"
           GH_TOKEN: "${{ github.token }}"
         run: |
           cd packages/opencode
