@@ -292,6 +292,8 @@ async function runRealStatus(args: RealStatusArgs): Promise<void> {
           join(Global.Path.config, "opencode.jsonc"),
           join(Global.Path.config, "opencode.json"),
           join(Global.Path.config, "config.json"),
+          join(process.cwd(), ".openswarm", "opencode.jsonc"),
+          join(process.cwd(), ".openswarm", "opencode.json"),
           join(process.cwd(), ".opencode", "opencode.jsonc"),
           join(process.cwd(), ".opencode", "opencode.json"),
           join(process.cwd(), "opencode.jsonc"),
