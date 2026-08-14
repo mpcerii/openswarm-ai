@@ -145,6 +145,14 @@ export interface DurableStore {
   auditEvents(): Promise<SwarmAudit.StoredEvent[]>
   eventsByType(type: string): Promise<SwarmAudit.StoredEvent[]>
 
+  // ------------------------------------------------- model allowlist overrides
+  // Runtime model policy: the human toggles which provider models the swarm
+  // may use. Seeded from config `swarm.models.allowed` on first access, then
+  // this durable set becomes authoritative until changed again.
+  hasModelOverrides(): Promise<boolean>
+  listEnabledModels(): Promise<string[]>
+  setModelEnabled(id: string, enabled: boolean): Promise<void>
+
   // ----------------------------------------------------------------- workers
   putWorker(record: SwarmWorker.Record): Promise<void>
   getWorker(id: string): Promise<SwarmWorker.Record | undefined>

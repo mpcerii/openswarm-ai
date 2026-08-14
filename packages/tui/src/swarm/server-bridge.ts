@@ -87,7 +87,7 @@ export class ServerSwarmBridge {
   private async getStatus(): Promise<{
     enabled: boolean
     models: { allowed: string[]; approved: number }
-    modelStates: Array<{ id: string; provider: string; available: boolean }>
+    modelStates: Array<{ id: string; provider: string; available: boolean; authorized: boolean }>
     population: { current: number; max: number }
     active: { agents: number; max: number; llm: number; peak: number }
     workspaces: { active: number; max: number }
@@ -109,7 +109,7 @@ export class ServerSwarmBridge {
     const data = (body.data !== undefined && typeof body.data === "object" ? body.data : body) as {
       enabled?: boolean
       models?: { allowed?: string[]; approved?: number }
-      modelStates?: Array<{ id: string; provider: string; available: boolean }>
+      modelStates?: Array<{ id: string; provider: string; available: boolean; authorized?: boolean }>
       population?: { current?: number; max?: number }
       active?: { agents?: number; max?: number; llm?: number; peak?: number }
       workspaces?: { active?: number; max?: number }
@@ -128,7 +128,7 @@ export class ServerSwarmBridge {
     return {
       enabled: data.enabled as boolean,
       models: { allowed: data.models?.allowed ?? [], approved: data.models?.approved ?? 0 },
-      modelStates: data.modelStates ?? [],
+      modelStates: (data.modelStates ?? []).map((s) => ({ id: s.id, provider: s.provider, available: s.available, authorized: s.authorized ?? false })),
       population: { current: data.population?.current ?? 0, max: data.population?.max ?? 0 },
       active: { agents: data.active?.agents ?? 0, max: data.active?.max ?? 0, llm: data.active?.llm ?? 0, peak: data.active?.peak ?? 0 },
       workspaces: { active: data.workspaces?.active ?? 0, max: data.workspaces?.max ?? 0 },
@@ -250,7 +250,11 @@ export class ServerSwarmBridge {
   resumeFromStop(): void { this.unsupported("resumeFromStop") }
   setActiveBound(): void { this.unsupported("setActiveBound") }
   setMissionBudgetLimits(): void { this.unsupported("setMissionBudgetLimits") }
-  disableModel(): void { this.unsupported("disableModel") }
+  disableModel(modelID: string, disabled: boolean): void {
+    void this.post("/swarm/model/toggle", { modelID, enabled: !disabled }).catch((e) => {
+      this.errorValue = e instanceof Error ? e.message : String(e)
+    })
+  }
   injectMessage(): void { this.unsupported("injectMessage") }
   completeIntegration(): void {
     void this.post("/swarm/integration/apply").catch((e) => {

@@ -281,7 +281,7 @@ export function withEmergency(snapshot: SwarmUiSnapshot, emergencyStopped: boole
 export interface ServerStatus {
   enabled: boolean
   models: { allowed: string[]; approved: number }
-  modelStates?: Array<{ id: string; provider: string; available: boolean }>
+  modelStates?: Array<{ id: string; provider: string; available: boolean; authorized: boolean }>
   population: { current: number; max: number }
   active: { agents: number; max: number; llm: number; peak: number }
   workspaces: { active: number; max: number }
@@ -340,15 +340,14 @@ export function buildSnapshotFromServer(status: ServerStatus, serverAgents: { ag
   const models: SwarmUiModel[] = (status.modelStates ?? []).map((s) => ({
     model: s.id,
     provider: s.provider,
-    // Human-owned allowlist is authoritative: every listed model is authorized.
-    // Availability against the real provider catalog is surfaced separately so
-    // the user can see "authorized but unavailable".
-    authorized: true,
+    // Runtime authorization (toggled from the Models view). Unauthorized
+    // models are shown but disabled so the human sees the full provider catalog.
+    authorized: s.authorized,
     pools: [],
     health: s.available ? "ok" : "unavailable",
     active: 0,
     queued: 0,
-    disabled: !s.available,
+    disabled: !s.authorized,
   }))
 
   const resources: SwarmUiResource[] = []

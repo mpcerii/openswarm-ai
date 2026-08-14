@@ -10,6 +10,8 @@ import {
   SwarmIntegrationApplyResponse,
   SwarmIntegrationApproveInput,
   SwarmIntegrationApproveResponse,
+  SwarmModelToggleInput,
+  SwarmModelToggleResponse,
   SwarmProvenanceResponse,
   SwarmStatusResponse,
 } from "../groups/swarm"
@@ -94,6 +96,11 @@ export const swarmHandlers = HttpApiBuilder.group(InstanceHttpApi, "swarm", (han
       return yield* status()
     })
 
+    const toggleModel = Effect.fn("SwarmHttpApi.toggleModel")(function* (args: { payload: typeof SwarmModelToggleInput.Type }) {
+      yield* swarm.toggleModel(args.payload.modelID, args.payload.enabled)
+      return { modelID: args.payload.modelID, enabled: args.payload.enabled } satisfies typeof SwarmModelToggleResponse.Type
+    })
+
     const why = Effect.fn("SwarmHttpApi.why")(function* (args: { query: { target: string } }) {
       const entries = yield* swarm.provenance(args.query.target)
       return { entries } satisfies typeof SwarmProvenanceResponse.Type
@@ -139,6 +146,7 @@ export const swarmHandlers = HttpApiBuilder.group(InstanceHttpApi, "swarm", (han
       .handle("resume", resume)
       .handle("cancel", cancel)
       .handle("releaseWorktree", releaseWorktree)
+      .handle("toggleModel", toggleModel)
       .handle("why", why)
       .handle("integrationApprove", integrationApprove)
       .handle("integrationApply", integrationApply)

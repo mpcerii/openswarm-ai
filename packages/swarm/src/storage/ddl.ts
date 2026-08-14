@@ -115,4 +115,8 @@ export const CLUSTER_DDL: string[] = [
     created_at INTEGER NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS idx_swarm_store_queue_visible ON swarm_store_queue(visible_at)`,
+  `CREATE TABLE IF NOT EXISTS swarm_store_model (
+    id TEXT PRIMARY KEY,
+    enabled INTEGER NOT NULL DEFAULT 1
+  )`,
 ]

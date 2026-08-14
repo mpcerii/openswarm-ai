@@ -242,6 +242,20 @@ export class SqliteStore implements DurableStore {
     })
   }
 
+  async hasModelOverrides(): Promise<boolean> {
+    const row = this.db.prepare(`SELECT COUNT(*) AS n FROM swarm_store_model`).get() as { n: number }
+    return row.n > 0
+  }
+
+  async listEnabledModels(): Promise<string[]> {
+    const rows = this.db.prepare(`SELECT id FROM swarm_store_model WHERE enabled = 1`).all() as { id: string }[]
+    return rows.map((r) => r.id)
+  }
+
+  async setModelEnabled(id: string, enabled: boolean): Promise<void> {
+    this.db.prepare(`INSERT INTO swarm_store_model (id, enabled) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET enabled = excluded.enabled`).run(id, enabled ? 1 : 0)
+  }
+
   async putWorker(record: SwarmWorker.Record): Promise<void> {
     this.db
       .prepare(`INSERT INTO swarm_store_worker (id, payload, health, last_heartbeat) VALUES (?, ?, ?, ?)

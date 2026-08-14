@@ -11,7 +11,7 @@ import { ServerSwarmBridge } from "../../src/swarm/server-bridge"
 const zeroStatus = {
   enabled: true,
   models: { allowed: ["test/test-model"], approved: 1 },
-  modelStates: [{ id: "test/test-model", provider: "test", available: true }],
+  modelStates: [{ id: "test/test-model", provider: "test", available: true, authorized: true }],
   population: { current: 0, max: 10000 },
   active: { agents: 0, max: 32, llm: 0, peak: 0 },
   workspaces: { active: 0, max: 16 },
@@ -35,8 +35,8 @@ test("models render from modelStates with availability", () => {
     {
       ...zeroStatus,
       modelStates: [
-        { id: "test/test-model", provider: "test", available: true },
-        { id: "openai/gpt-5", provider: "openai", available: false },
+        { id: "test/test-model", provider: "test", available: true, authorized: true },
+        { id: "openai/gpt-5", provider: "openai", available: false, authorized: false },
       ],
       models: { allowed: ["test/test-model", "openai/gpt-5"], approved: 1 },
     },

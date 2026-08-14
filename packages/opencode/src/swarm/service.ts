@@ -35,6 +35,7 @@ export interface SwarmModelState {
   readonly id: string
   readonly provider: string
   readonly available: boolean
+  readonly authorized: boolean
 }
 
 export interface SpawnInput {
@@ -97,6 +98,9 @@ export interface Interface {
   // provider catalog. Lets the UI distinguish "authorized & available" from
   // "authorized but unavailable".
   readonly modelStates: () => Effect.Effect<SwarmModelState[]>
+  // Toggle a model's runtime authorization (add/remove from the effective
+  // allowlist). Persisted durably in the swarm store.
+  readonly toggleModel: (modelID: string, enabled: boolean) => Effect.Effect<void>
   // Mutation surface (real server-backed controls).
   readonly cancelBranch: (rootAgentID: string) => Effect.Effect<{ cancelled: string[] }>
   readonly paused: () => Effect.Effect<boolean>
@@ -164,45 +168,74 @@ export function makeImpl(deps: {
       return activeGate
     })
 
+  // Runtime model policy: the durable store holds the authoritative enabled
+  // set, seeded once from config `swarm.models.allowed`. The human toggles it
+  // in the /swarm Models view; spawns enforce it fail-closed.
+  let modelSeedDone = false
+  const effectiveAllowlist = () =>
+    Effect.gen(function* () {
+      if (!modelSeedDone) {
+        const has = yield* storePromise((s) => s.hasModelOverrides())
+        if (!has) {
+          const cfg = yield* deps.config()
+          for (const id of cfg.models.allowed) {
+            yield* storePromise((s) => s.setModelEnabled(id, true))
+          }
+        }
+        modelSeedDone = true
+      }
+      return yield* storePromise((s) => s.listEnabledModels())
+    })
+
   // Intersect the human allowlist with the REAL configured provider catalog.
   const approvedModelIDs: Interface["approvedModelIDs"] = () =>
     Effect.gen(function* () {
-      const cfg = yield* deps.config()
+      const allowed = yield* effectiveAllowlist()
       const providers = yield* deps.providers.list()
       const out: string[] = []
-      for (const allowed of cfg.models.allowed) {
-        const slash = allowed.indexOf("/")
+      for (const allowedID of allowed) {
+        const slash = allowedID.indexOf("/")
         if (slash < 0) continue
-        const providerID = allowed.slice(0, slash)
-        const modelID = allowed.slice(slash + 1)
+        const providerID = allowedID.slice(0, slash)
+        const modelID = allowedID.slice(slash + 1)
         const provider = (providers as Record<string, { models?: Record<string, unknown> }>)[providerID]
         if (provider === undefined) continue
         const hasModel =
           provider.models === undefined ||
           Object.keys(provider.models).some((m) => m === modelID || m.startsWith(modelID + ":"))
-        if (hasModel) out.push(allowed)
+        if (hasModel) out.push(allowedID)
       }
       return out
     })
 
   const modelStates: Interface["modelStates"] = () =>
     Effect.gen(function* () {
-      const cfg = yield* deps.config()
+      const allowed = yield* effectiveAllowlist()
+      const allowedSet = new Set(allowed)
       const providers = yield* deps.providers.list()
       const out: SwarmModelState[] = []
-      for (const allowed of cfg.models.allowed) {
-        const slash = allowed.indexOf("/")
-        if (slash < 0) continue
-        const providerID = allowed.slice(0, slash)
-        const modelID = allowed.slice(slash + 1)
-        const provider = (providers as Record<string, { models?: Record<string, unknown> }>)[providerID]
-        const available =
-          provider !== undefined &&
-          (provider.models === undefined ||
-            Object.keys(provider.models).some((m) => m === modelID || m.startsWith(modelID + ":")))
-        out.push({ id: allowed, provider: providerID, available })
+      for (const [providerID, provider] of Object.entries(providers as Record<string, { models?: Record<string, unknown> }>)) {
+        const models = provider.models
+        if (models === undefined) continue
+        for (const modelID of Object.keys(models)) {
+          const id = `${providerID}/${modelID}`
+          out.push({ id, provider: providerID, available: true, authorized: allowedSet.has(id) })
+        }
+      }
+      // Keep authorized-but-not-in-catalog models visible (e.g. disabled provider).
+      for (const id of allowed) {
+        if (!out.some((m) => m.id === id)) {
+          const slash = id.indexOf("/")
+          out.push({ id, provider: slash >= 0 ? id.slice(0, slash) : id, available: false, authorized: true })
+        }
       }
       return out
+    })
+
+  const toggleModel: Interface["toggleModel"] = (modelID, enabled) =>
+    Effect.gen(function* () {
+      yield* effectiveAllowlist()
+      yield* storePromise((s) => s.setModelEnabled(modelID, enabled))
     })
 
   const spawn: Interface["spawn"] = (input, ops) =>
@@ -212,7 +245,8 @@ export function makeImpl(deps: {
       if (pausedFlag) return { agentID: "", state: "rejected" as const, rejection: "swarm paused" }
 
       // 1. Model governance (fail-closed). The model must be in the allowlist.
-      const policy = { allowed: cfg.models.allowed }
+      const allowed = yield* effectiveAllowlist()
+      const policy = { allowed }
       const resolution = SwarmModels.resolve(policy, input.model)
       if (!resolution.ok) {
         return { agentID: "", state: "rejected" as const, rejection: resolution.code }
@@ -598,6 +632,7 @@ export function makeImpl(deps: {
     metrics,
     approvedModelIDs,
     modelStates,
+    toggleModel,
     paused,
     pause,
     resume,

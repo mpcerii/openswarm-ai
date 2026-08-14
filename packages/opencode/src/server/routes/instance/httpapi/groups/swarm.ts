@@ -16,7 +16,18 @@ export const SwarmModelState = Schema.Struct({
   id: Schema.String,
   provider: Schema.String,
   available: Schema.Boolean,
+  authorized: Schema.Boolean,
 }).annotate({ identifier: "SwarmModelState" })
+
+export const SwarmModelToggleInput = Schema.Struct({
+  modelID: Schema.String,
+  enabled: Schema.Boolean,
+}).annotate({ identifier: "SwarmModelToggleInput" })
+
+export const SwarmModelToggleResponse = Schema.Struct({
+  modelID: Schema.String,
+  enabled: Schema.Boolean,
+}).annotate({ identifier: "SwarmModelToggleResponse" })
 
 export const SwarmStatusResponse = Schema.Struct({
   enabled: Schema.Boolean,
@@ -109,6 +120,7 @@ export const SwarmPaths = {
   resume: "/swarm/resume",
   cancel: "/swarm/cancel",
   releaseWorktree: "/swarm/release-worktree",
+  toggleModel: "/swarm/model/toggle",
   why: "/swarm/why",
   integrationApprove: "/swarm/integration/approve",
   integrationApply: "/swarm/integration/apply",
@@ -184,6 +196,18 @@ export const SwarmApi = HttpApi.make("swarm")
             identifier: "swarm.releaseWorktree.post",
             summary: "Release an agent's worktree",
             description: "Release the git worktree allocated to an agent after its patch data has been captured.",
+          }),
+        ),
+        HttpApiEndpoint.post("toggleModel", SwarmPaths.toggleModel, {
+          query: WorkspaceRoutingQuery,
+          payload: SwarmModelToggleInput,
+          success: described(SwarmModelToggleResponse, "Model toggled"),
+          error: HttpApiError.InternalServerError,
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "swarm.model.toggle",
+            summary: "Enable or disable a model",
+            description: "Toggle a provider model's runtime authorization. Disabled models cannot be selected by spawned agents (fail-closed).",
           }),
         ),
         HttpApiEndpoint.get("why", SwarmPaths.why, {

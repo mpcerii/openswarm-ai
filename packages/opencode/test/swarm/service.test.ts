@@ -181,7 +181,8 @@ describe("SwarmService (real session bridge)", () => {
         const before = yield* swarm.metrics()
 
         const states0 = yield* swarm.modelStates()
-        expect(states0).toEqual([{ id: "test/test-model", provider: "test", available: true }])
+        const model0 = states0.find((s) => s.id === "test/test-model")
+        expect(model0).toEqual({ id: "test/test-model", provider: "test", available: true, authorized: true })
 
         const out = yield* swarm.spawn({ objective: "inspect", role: "investigator" }, stubOps())
         expect(out.state).toBe("queued")
@@ -209,7 +210,8 @@ describe("SwarmService (real session bridge)", () => {
         const states = yield* swarm.modelStates()
         // Only the configured test provider's model is available; an allowlisted
         // model with no configured provider surfaces as unavailable.
-        expect(states).toEqual([{ id: "test/test-model", provider: "test", available: true }])
+        const model = states.find((s) => s.id === "test/test-model")
+        expect(model).toEqual({ id: "test/test-model", provider: "test", available: true, authorized: true })
       }),
     {
       config: () => ({

@@ -142,6 +142,7 @@ export class MemoryStore implements DurableStore {
   private readonly artifacts = new Map<string, SwarmArtifact.PatchRecord>()
   private readonly audit: SwarmAudit.StoredEvent[] = []
   private readonly auditByType = new Map<string, number[]>()
+  private readonly modelOverrides = new Map<string, boolean>()
   private readonly workers = new Map<string, SwarmWorker.Record>()
   private readonly leases = new Map<string, SwarmLease.Record>()
   private readonly operations = new Map<string, SwarmIdempotency.Record>()
@@ -255,6 +256,18 @@ export class MemoryStore implements DurableStore {
   async eventsByType(type: string): Promise<SwarmAudit.StoredEvent[]> {
     const indices = this.auditByType.get(type) ?? []
     return indices.map((i) => this.audit[i]!)
+  }
+
+  async hasModelOverrides(): Promise<boolean> {
+    return this.modelOverrides.size > 0
+  }
+
+  async listEnabledModels(): Promise<string[]> {
+    return [...this.modelOverrides.entries()].filter(([, enabled]) => enabled).map(([id]) => id)
+  }
+
+  async setModelEnabled(id: string, enabled: boolean): Promise<void> {
+    this.modelOverrides.set(id, enabled)
   }
 
   async putWorker(record: SwarmWorker.Record): Promise<void> {
