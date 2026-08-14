@@ -21,7 +21,7 @@ import { LayerNode } from "@opencode-ai/core/effect/layer-node"
 import type { TaskPromptOps } from "@/tool/task"
 import { SwarmConfigBridge } from "./config"
 import { SwarmWorktreeBackend } from "./worktree-backend"
-import { memoryAdd } from "./memory-file"
+import { memoryAdd, memoryCompact, memoryRead } from "./memory-file"
 
 // ---------------------------------------------------------------------------
 // SwarmService: the production bridge between the swarm kernel and the real
@@ -343,19 +343,20 @@ export function makeImpl(deps: {
       //    `task` tool uses (BackgroundJob + SessionPrompt.prompt).
       const run = Effect.gen(function* () {
         const base = yield* ops.resolvePromptParts(input.objective)
+        // Auto-inject the recent team memory so the agent doesn't re-discover
+        // what earlier agents already learned. Compact, token-cheap.
+        const recent = yield* Effect.sync(() => memoryRead(25).map(memoryCompact))
         // Deliver messages that arrived while the agent was still queued, so
         // send_agent_message actually reaches an agent before it starts.
         const queued = yield* storePromise((s) => s.messagesForAgent(String(agentID)))
-        const parts =
-          queued.length > 0
-            ? [
-                ...base,
-                {
-                  type: "text" as const,
-                  text: `\n\nAdditional instructions from the primary agent:\n${queued.map((m) => `[${m.from}]: ${m.body}`).join("\n")}`,
-                },
-              ]
-            : base
+        const extras: Array<{ type: "text"; text: string }> = []
+        if (recent.length > 0) {
+          extras.push({ type: "text", text: `\n\nProject team memory (recent, most relevant context):\n${recent.join("\n")}` })
+        }
+        if (queued.length > 0) {
+          extras.push({ type: "text", text: `\n\nAdditional instructions from the primary agent:\n${queued.map((m) => `[${m.from}]: ${m.body}`).join("\n")}` })
+        }
+        const parts = extras.length > 0 ? [...base, ...extras] : base
         const result = yield* ops.prompt({
           messageID: MessageID.ascending(),
           sessionID: created.id,
