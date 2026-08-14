@@ -3,7 +3,10 @@ import { chmod, copyFile, mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-const CLI_VERSION = "0.0.0-next-16350"
+// openSwarm CLI release used by the desktop shell. Override with
+// OPENCODE_VERSION to pin a specific release (e.g. 1.0.1).
+const CLI_VERSION = Bun.env.OPENCODE_VERSION ?? "1.0.0"
+const CLI_RELEASE_BASE = `https://github.com/mpcerii/openswarm-ai/releases/download/v${CLI_VERSION}`
 
 export type Channel = "dev" | "beta" | "prod"
 
@@ -13,43 +16,13 @@ export function resolveChannel(): Channel {
   return "dev"
 }
 
-export const CLI_BINARIES: Array<{ rustTarget: string; package: string; os: string; cpu: string }> = [
-  {
-    rustTarget: "aarch64-apple-darwin",
-    package: "@opencode-ai/cli-darwin-arm64",
-    os: "darwin",
-    cpu: "arm64",
-  },
-  {
-    rustTarget: "x86_64-apple-darwin",
-    package: "@opencode-ai/cli-darwin-x64-baseline",
-    os: "darwin",
-    cpu: "x64",
-  },
-  {
-    rustTarget: "aarch64-pc-windows-msvc",
-    package: "@opencode-ai/cli-windows-arm64",
-    os: "win32",
-    cpu: "arm64",
-  },
-  {
-    rustTarget: "x86_64-pc-windows-msvc",
-    package: "@opencode-ai/cli-windows-x64-baseline",
-    os: "win32",
-    cpu: "x64",
-  },
-  {
-    rustTarget: "x86_64-unknown-linux-gnu",
-    package: "@opencode-ai/cli-linux-x64-baseline",
-    os: "linux",
-    cpu: "x64",
-  },
-  {
-    rustTarget: "aarch64-unknown-linux-gnu",
-    package: "@opencode-ai/cli-linux-arm64",
-    os: "linux",
-    cpu: "arm64",
-  },
+export const CLI_BINARIES: Array<{ rustTarget: string; asset: string; os: string; cpu: string; archive: "zip" | "tar.gz" }> = [
+  { rustTarget: "aarch64-apple-darwin", asset: "opencode-darwin-arm64", os: "darwin", cpu: "arm64", archive: "zip" },
+  { rustTarget: "x86_64-apple-darwin", asset: "opencode-darwin-x64-baseline", os: "darwin", cpu: "x64", archive: "zip" },
+  { rustTarget: "aarch64-pc-windows-msvc", asset: "opencode-windows-arm64", os: "win32", cpu: "arm64", archive: "zip" },
+  { rustTarget: "x86_64-pc-windows-msvc", asset: "opencode-windows-x64-baseline", os: "win32", cpu: "x64", archive: "zip" },
+  { rustTarget: "x86_64-unknown-linux-gnu", asset: "opencode-linux-x64-baseline", os: "linux", cpu: "x64", archive: "tar.gz" },
+  { rustTarget: "aarch64-unknown-linux-gnu", asset: "opencode-linux-arm64", os: "linux", cpu: "arm64", archive: "tar.gz" },
 ]
 
 export const RUST_TARGET = Bun.env.RUST_TARGET
@@ -73,22 +46,23 @@ export async function downloadCliToResources() {
   const cli = getCurrentCli()
   const directory = await mkdtemp(join(tmpdir(), "openswarm-cli-"))
   const dest = windowsify("resources/openswarm-cli")
+  const archive = join(directory, `${cli.asset}.${cli.archive}`)
   try {
-    await $`bun install --no-save --cwd ${directory} ${`${cli.package}@${CLI_VERSION}`} ${`--os=${cli.os}`} ${`--cpu=${cli.cpu}`}`
-    await copyFile(
-      join(directory, "node_modules", cli.package, "bin", cli.os === "win32" ? "opencode2.exe" : "opencode2"),
-      dest,
-    )
+    const url = `${CLI_RELEASE_BASE}/${cli.asset}.${cli.archive}`
+    await $`curl -fsSL -o ${archive} ${url}`
+    if (cli.archive === "zip") {
+      await $`unzip -q -o ${archive} -d ${directory}`
+    } else {
+      await $`tar -xzf ${archive} -C ${directory}`
+    }
+    await copyFile(join(directory, cli.os === "win32" ? "opencode.exe" : "opencode"), dest)
   } finally {
     await rm(directory, { recursive: true, force: true })
   }
   if (process.platform !== "win32") await chmod(dest, 0o755)
-  if (process.platform === "win32" && process.env.GITHUB_ACTIONS === "true") {
-    await $`pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File ../../script/sign-windows.ps1 ${dest}`
-  }
   if (process.platform === "darwin") await $`codesign --force --sign - ${dest}`
 
-  console.log(`Copied ${cli.package} to ${dest}`)
+  console.log(`Copied ${cli.asset}.${cli.archive} to ${dest}`)
 }
 
 export function windowsify(path: string) {
