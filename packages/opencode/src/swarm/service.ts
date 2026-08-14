@@ -346,25 +346,48 @@ export function makeImpl(deps: {
         // Auto-inject the recent team memory so the agent doesn't re-discover
         // what earlier agents already learned. Compact, token-cheap.
         const recent = yield* Effect.sync(() => memoryRead(25).map(memoryCompact))
-        // Deliver messages that arrived while the agent was still queued, so
-        // send_agent_message actually reaches an agent before it starts.
-        const queued = yield* storePromise((s) => s.messagesForAgent(String(agentID)))
+        // Track consumed messages so steer-mid-run only feeds NEW ones in.
+        const seen = new Set<string>()
+        const takeFresh = (msgs: Array<{ id: string; from: unknown; body: string }>) =>
+          msgs.filter((m) => !seen.has(m.id)).map((m) => (seen.add(m.id), m))
+        const fresh = takeFresh(yield* storePromise((s) => s.messagesForAgent(String(agentID))))
+
         const extras: Array<{ type: "text"; text: string }> = []
         if (recent.length > 0) {
           extras.push({ type: "text", text: `\n\nProject team memory (recent, most relevant context):\n${recent.join("\n")}` })
         }
-        if (queued.length > 0) {
-          extras.push({ type: "text", text: `\n\nAdditional instructions from the primary agent:\n${queued.map((m) => `[${m.from}]: ${m.body}`).join("\n")}` })
+        if (fresh.length > 0) {
+          extras.push({ type: "text", text: `\n\nAdditional instructions from the primary agent:\n${fresh.map((m) => `[${m.from}]: ${m.body}`).join("\n")}` })
         }
         const parts = extras.length > 0 ? [...base, ...extras] : base
-        const result = yield* ops.prompt({
-          messageID: MessageID.ascending(),
-          sessionID: created.id,
-          agent: "general",
-          model: { providerID: providerID as never, modelID: modelID as never },
-          parts,
-        })
-        return result.parts.findLast((item) => item.type === "text")?.text ?? ""
+
+        const promptOnce = (input: { messageID: typeof MessageID.Type; parts: typeof base }) =>
+          ops.prompt({
+            messageID: input.messageID,
+            sessionID: created.id,
+            agent: "general",
+            model: { providerID: providerID as never, modelID: modelID as never },
+            parts: input.parts,
+          })
+
+        let result = ""
+        let r = yield* promptOnce({ messageID: MessageID.ascending(), parts })
+        result = r.parts.findLast((item) => item.type === "text")?.text ?? ""
+
+        // Steer-mid-run loop: pick up messages the primary sends while this
+        // agent is working and answer them in a new turn (bounded to avoid
+        // runaway loops).
+        for (let i = 0; i < 10; i++) {
+          const steering = takeFresh(yield* storePromise((s) => s.messagesForAgent(String(agentID))))
+          if (steering.length === 0) break
+          const text = steering.map((m) => `[${m.from}]: ${m.body}`).join("\n")
+          r = yield* promptOnce({
+            messageID: MessageID.ascending(),
+            parts: [{ type: "text" as const, text: `\n\nNew instructions from the primary agent:\n${text}` }],
+          })
+          result = r.parts.findLast((item) => item.type === "text")?.text ?? ""
+        }
+        return result
       }).pipe(Effect.onInterrupt(() => ops.cancel(created.id)))
 
       const gate = yield* gateFor()
