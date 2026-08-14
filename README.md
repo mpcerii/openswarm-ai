@@ -15,6 +15,43 @@ model policy and approval controls.
 > for reference; upstream install links and badges refer to the original
 > project.
 
+## Installation
+
+**Prerequisites:** [Bun](https://bun.sh) >= 1.3 (build from source only).
+
+### Build from source
+
+```bash
+git clone https://github.com/mpcerii/openswarm-ai.git
+cd openswarm-ai
+bun install
+cd packages/opencode
+bun run build --single --skip-embed-web-ui
+```
+
+The compiled binary lands in `packages/opencode/dist/opencode-<os>-<arch>/bin/`.
+
+### Installer (prebuilt binaries)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mpcerii/openswarm-ai/openswarm/bootstrap/install | bash
+```
+
+This downloads the prebuilt binary for your platform from GitHub Releases and
+installs it to `~/.openswarm/bin`. (Requires a published release — see
+`.github/workflows/publish.yml`.)
+
+### Configuration
+
+```bash
+openswarm auth login              # configure an LLM provider
+openswarm                       # start the TUI
+openswarm swarm real-status     # live swarm state
+```
+
+Swarm behavior is controlled by `swarm.*` in `opencode.json` (global or per
+project in `.openswarm/opencode.json`). See `docs/openswarm/getting-started.md`.
+
 ---
 
 <p align="center">
