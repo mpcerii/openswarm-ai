@@ -78,9 +78,8 @@ export class ServerSwarmBridge {
       this.configErrorsValue = status.errors
       this.errorValue = undefined
     } catch (error) {
-      this.errorValue =
-        (error instanceof Error ? error.message : String(error)) +
-        ("\n" + JSON.stringify(error, null, 2).slice(0, 3000))
+      const e = error instanceof Error ? error : new Error(String(error))
+      this.errorValue = `${e.name}: ${e.message}\n${e.stack ?? ""}`.slice(0, 4000)
       console.error("[swarm-bridge] tick error:", error)
     }
   }
