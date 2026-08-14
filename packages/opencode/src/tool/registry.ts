@@ -63,8 +63,9 @@ import {
   GetAgentResultTool,
   CancelAgentTool,
   WaitForAgentsTool,
-  MemorySetTool,
-  MemoryGetTool,
+  MemoryAddTool,
+  MemoryReadTool,
+  MemorySearchTool,
 } from "@/swarm/tools"
 
 export function webSearchEnabled(providerID: ProviderV2.ID, flags = { exa: false, parallel: false }) {
@@ -140,8 +141,9 @@ const layer = Layer.effect(
             getAgentResult: GetAgentResultTool,
             cancelAgent: CancelAgentTool,
             waitForAgents: WaitForAgentsTool,
-            memorySet: MemorySetTool,
-            memoryGet: MemoryGetTool,
+            memoryAdd: MemoryAddTool,
+            memoryRead: MemoryReadTool,
+            memorySearch: MemorySearchTool,
           })
         : undefined
 
@@ -246,8 +248,9 @@ const layer = Layer.effect(
               getAgentResult: Tool.init(swarmInfos.getAgentResult),
               cancelAgent: Tool.init(swarmInfos.cancelAgent),
               waitForAgents: Tool.init(swarmInfos.waitForAgents),
-              memorySet: Tool.init(swarmInfos.memorySet),
-              memoryGet: Tool.init(swarmInfos.memoryGet),
+              memoryAdd: Tool.init(swarmInfos.memoryAdd),
+              memoryRead: Tool.init(swarmInfos.memoryRead),
+              memorySearch: Tool.init(swarmInfos.memorySearch),
             })
           : undefined
 
@@ -290,7 +293,7 @@ const layer = Layer.effect(
             tool.patch,
             ...(swarmTool ? [swarmTool.spawnAgent, swarmTool.spawnAgents, swarmTool.listAgents] : []),
             ...(swarmTool ? [swarmTool.sendAgentMessage, swarmTool.getAgentResult, swarmTool.cancelAgent, swarmTool.waitForAgents] : []),
-            ...(swarmTool ? [swarmTool.memorySet, swarmTool.memoryGet] : []),
+            ...(swarmTool ? [swarmTool.memoryAdd, swarmTool.memoryRead, swarmTool.memorySearch] : []),
             ...(tool.execute ? [tool.execute] : []),
             ...(flags.experimentalLspTool ? [tool.lsp] : []),
             ...(flags.experimentalPlanMode && flags.client === "cli" ? [tool.plan] : []),

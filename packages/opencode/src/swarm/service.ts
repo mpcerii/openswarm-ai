@@ -21,6 +21,7 @@ import { LayerNode } from "@opencode-ai/core/effect/layer-node"
 import type { TaskPromptOps } from "@/tool/task"
 import { SwarmConfigBridge } from "./config"
 import { SwarmWorktreeBackend } from "./worktree-backend"
+import { memoryAdd } from "./memory-file"
 
 // ---------------------------------------------------------------------------
 // SwarmService: the production bridge between the swarm kernel and the real
@@ -399,6 +400,14 @@ export function makeImpl(deps: {
                       body: waited.info?.output ?? waited.info?.error ?? "",
                       inReplyTo: undefined,
                       time: DateTime.makeUnsafe(deps.now()),
+                    }),
+                  ),
+                  // Auto-write a compact memory record so future agents don't
+                  // re-discover this result.
+                  Effect.sync(() =>
+                    memoryAdd({
+                      kind: "result",
+                      content: `${input.role ?? "agent"}: ${input.objective.slice(0, 90)} => ${(waited.info?.output ?? "").trim().slice(0, 180)}`,
                     }),
                   ),
                 ]),

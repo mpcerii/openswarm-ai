@@ -4,6 +4,7 @@ import * as Tool from "@/tool/tool"
 import { Effect, Schema } from "effect"
 import { ToolJsonSchema } from "@/tool/json-schema"
 import { SwarmService } from "./service"
+import { memoryAdd, memoryCompact, memoryRead, memorySearch, type MemoryKind } from "./memory-file"
 import type { TaskPromptOps } from "@/tool/task"
 import { Config } from "@/config/config"
 import { SwarmConfigBridge } from "./config"
@@ -393,24 +394,30 @@ export const WaitForAgentsTool = Tool.define(
   }),
 )
 
-const id8 = "swarm_memory_set"
+const id8 = "swarm_memory_add"
 
-export const MemorySetTool = Tool.define(
+export const MemoryAddTool = Tool.define(
   id8,
   Effect.gen(function* () {
-    const swarm = yield* SwarmService.Service
     const Parameters = Schema.Struct({
-      key: Schema.String.annotate({ description: "Short identifier for this note (e.g. 'decision:auth-flow')" }),
-      content: Schema.String.annotate({ description: "The note content other agents should know" }),
+      kind: Schema.optional(Schema.Literals(["fact", "decision", "todo", "gotcha", "result"])).annotate({
+        description: "Memory kind. Defaults to fact.",
+      }),
+      content: Schema.String.annotate({
+        description: "ONE compact line to remember (not prose). E.g. 'auth is in packages/core/src/auth'",
+      }),
     })
-    const run = Effect.fn("SwarmTools.memory_set.execute")(function* (
+    const run = Effect.fn("SwarmTools.memory_add.execute")(function* (
       params: Schema.Schema.Type<typeof Parameters>,
     ) {
-      yield* swarm.memorySet(params.key, params.content)
-      return { title: "swarm_memory_set", metadata: {}, output: `Memory "${params.key}" saved.` }
+      yield* Effect.sync(() =>
+        memoryAdd({ kind: (params.kind ?? "fact") as MemoryKind, content: params.content.trim() }),
+      )
+      return { title: "swarm_memory_add", metadata: {}, output: "remembered." }
     })
     return {
-      description: "Persist a note into the shared team memory so spawned agents can read it later.",
+      description:
+        "Append ONE compact fact/decision/todo/gotcha to the project's persistent team memory (.openswarm/memory.jsonl). Keeps future agents from re-discovering it. Write short, specific lines, not prose.",
       parameters: Parameters,
       jsonSchema: ToolJsonSchema.fromSchema(Parameters),
       execute: (params: Schema.Schema.Type<typeof Parameters>, _ctx: Tool.Context) => run(params).pipe(Effect.orDie),
@@ -418,28 +425,48 @@ export const MemorySetTool = Tool.define(
   }),
 )
 
-const id9 = "swarm_memory_get"
+const id9 = "swarm_memory_read"
 
-export const MemoryGetTool = Tool.define(
+export const MemoryReadTool = Tool.define(
   id9,
   Effect.gen(function* () {
-    const swarm = yield* SwarmService.Service
     const Parameters = Schema.Struct({
-      key: Schema.optional(Schema.String).annotate({ description: "Note identifier. Omit to list all notes." }),
+      limit: Schema.optional(Schema.Int).annotate({ description: "How many recent records to return (default 50)." }),
     })
-    const run = Effect.fn("SwarmTools.memory_get.execute")(function* (
+    const run = Effect.fn("SwarmTools.memory_read.execute")(function* (
       params: Schema.Schema.Type<typeof Parameters>,
     ) {
-      if (params.key !== undefined) {
-        const content = yield* swarm.memoryGet(params.key)
-        return { title: "swarm_memory_get", metadata: {}, output: content ?? `No memory under "${params.key}".` }
-      }
-      const entries = yield* swarm.memoryList()
-      const lines = entries.map((e) => `${e.key}: ${e.content.slice(0, 400)}`)
-      return { title: "swarm_memory_get", metadata: {}, output: lines.length > 0 ? lines.join("\n") : "Team memory is empty." }
+      const lines = yield* Effect.sync(() => memoryRead(params.limit ?? 50))
+      const out = lines.map(memoryCompact)
+      return { title: "swarm_memory_read", metadata: {}, output: out.length > 0 ? out.join("\n") : "team memory empty." }
     })
     return {
-      description: "Read a note from the shared team memory, or list all notes when no key is given.",
+      description: "Read the most recent records from the project's team memory. Cheap context — use before starting work.",
+      parameters: Parameters,
+      jsonSchema: ToolJsonSchema.fromSchema(Parameters),
+      execute: (params: Schema.Schema.Type<typeof Parameters>, _ctx: Tool.Context) => run(params).pipe(Effect.orDie),
+    }
+  }),
+)
+
+const id10 = "swarm_memory_search"
+
+export const MemorySearchTool = Tool.define(
+  id10,
+  Effect.gen(function* () {
+    const Parameters = Schema.Struct({
+      query: Schema.String.annotate({ description: "Substring to search for (case-insensitive)." }),
+      limit: Schema.optional(Schema.Int).annotate({ description: "Max results (default 20)." }),
+    })
+    const run = Effect.fn("SwarmTools.memory_search.execute")(function* (
+      params: Schema.Schema.Type<typeof Parameters>,
+    ) {
+      const lines = yield* Effect.sync(() => memorySearch(params.query, params.limit ?? 20))
+      const out = lines.map(memoryCompact)
+      return { title: "swarm_memory_search", metadata: {}, output: out.length > 0 ? out.join("\n") : "no matches." }
+    })
+    return {
+      description: "Search the project's team memory for a substring. Token-cheap targeted recall.",
       parameters: Parameters,
       jsonSchema: ToolJsonSchema.fromSchema(Parameters),
       execute: (params: Schema.Schema.Type<typeof Parameters>, _ctx: Tool.Context) => run(params).pipe(Effect.orDie),
@@ -449,7 +476,7 @@ export const MemoryGetTool = Tool.define(
 
 // All swarm tools registered when swarm.enabled. The list is stable so the
 // registry can spread it into builtins conditionally.
-export const all = [SpawnAgentTool, SpawnAgentsTool, ListAgentsTool, SendAgentMessageTool, GetAgentResultTool, CancelAgentTool, WaitForAgentsTool, MemorySetTool, MemoryGetTool]
+export const all = [SpawnAgentTool, SpawnAgentsTool, ListAgentsTool, SendAgentMessageTool, GetAgentResultTool, CancelAgentTool, WaitForAgentsTool, MemoryAddTool, MemoryReadTool, MemorySearchTool]
 
 export function swarmToolIds(): string[] {
   return all.map((t) => t.id)
