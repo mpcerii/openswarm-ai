@@ -301,7 +301,7 @@ export interface ServerAgent {
 
 export function buildSnapshotFromServer(status: ServerStatus, serverAgents: { agents: ServerAgent[] }, now: number): SwarmUiSnapshot {
   const agents: SwarmUiAgent[] = serverAgents.agents.map((a, i) => {
-    const validStates = new Set<string>(SwarmAgent.State as unknown as string[])
+    const validStates = new Set<string>(SwarmAgent.State.literals)
     return {
       id: a.id,
       parent: undefined,
